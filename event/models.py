@@ -17,6 +17,7 @@ class OrganizationType(models.Model):
 
 
 class Event(models.Model):
+    creator = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_events', null=True, blank=True)
     name = models.CharField(max_length=255, blank=True, null=True)
     type = models.ForeignKey(OrganizationType, on_delete=models.CASCADE, related_name="events")
     duration = models.CharField(max_length=255, default="5")
@@ -32,3 +33,20 @@ class Event(models.Model):
 
     def __str__(self):
         return self.name or f"Event {self.id}"
+
+
+class Fundraiser(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='fundraisers')
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='fundraisers')
+    name = models.CharField(max_length=255, blank=True, null=True)
+    media = models.FileField(upload_to='fundraisers_media/', blank=True, null=True)
+    description = models.TextField(blank=True, null=True)
+    goal = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('user', 'event')
+
+    def __str__(self):
+        return f"{self.user.email} - {self.event.code}"

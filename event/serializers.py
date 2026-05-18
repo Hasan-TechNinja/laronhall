@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import OrganizationType, Event
+from .models import OrganizationType, Event, Fundraiser
 
 class OrganizationTypeSerializer(serializers.ModelSerializer):
     class Meta:
@@ -10,4 +10,9 @@ class OrganizationTypeSerializer(serializers.ModelSerializer):
 class EventSerializer(serializers.ModelSerializer):
     class Meta:
         model = Event
+        fields = "__all__"
+
+class FundraiserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Fundraiser
         fields = "__all__"
