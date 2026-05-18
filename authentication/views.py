@@ -6,7 +6,7 @@ from rest_framework import status, permissions
 from django.core.mail import send_mail
 from django.conf import settings
 import random
-from . models import RegisterOTP, Profile
+from . models import RegisterOTP, Profile, ForgotPasswordOTP
 from . serializers import ProfileSerializer
 from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 
@@ -129,3 +129,103 @@ class ProfileView(APIView):
             serializer.save()
             return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ForgotPasswordView(APIView):
+    def post(self, request):
+        email = request.data.get('email')
+        if not email:
+            return Response({'error': 'Email is required'}, status=status.HTTP_400_BAD_REQUEST)
+        if not User.objects.filter(email=email).exists():
+            return Response({'error': 'User is not registered.'}, status=status.HTTP_400_BAD_REQUEST)
+        user = User.objects.filter(email=email).first()
+        otp = random.randint(100000, 999999)
+        ForgotPasswordOTP.objects.filter(user=user).delete()
+        ForgotPasswordOTP.objects.create(user=user, otp=otp)
+        send_mail(
+            'Forgot Password Verification for Treats Island',
+            f'Your OTP is {otp}',
+            settings.DEFAULT_FROM_EMAIL,
+            [email],
+            fail_silently=False,
+        )
+        return Response({'message': 'Email sent successfully.'}, status=status.HTTP_200_OK)
+
+
+class ForgotPasswordOTPVerificationView(APIView):
+    def post(self, request):
+        email = request.data.get('email')
+        otp = request.data.get('otp')
+
+        if not email:
+            return Response({'error': 'Email is required'}, status=status.HTTP_400_BAD_REQUEST)
+        if not otp:
+            return Response({'error': 'OTP is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not User.objects.filter(email=email).exists():
+            return Response({'error': 'User is not registered.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = User.objects.filter(email=email).first()
+        forgot_password_otp = ForgotPasswordOTP.objects.filter(user=user).first()
+        
+        if not forgot_password_otp:
+            return Response({'error': 'OTP is not found.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if forgot_password_otp.otp != str(otp):
+            return Response({'error': 'Invalid OTP.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        forgot_password_otp.is_verified = True
+        forgot_password_otp.save()
+        return Response({'message': 'OTP verified successfully.'}, status=status.HTTP_200_OK)
+
+
+class ResetPasswordView(APIView):
+    def post(self, request):
+        email = request.data.get('email')
+        new_password = request.data.get('new_password')
+        confirm_password = request.data.get('confirm_password')
+
+        if not email:
+            return Response({'error': 'Email is required'}, status=status.HTTP_400_BAD_REQUEST)
+        if not new_password or not confirm_password:
+            return Response({'error': 'New password and confirm password are required'}, status=status.HTTP_400_BAD_REQUEST)
+        if new_password != confirm_password:
+            return Response({'error': 'Passwords do not match'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not User.objects.filter(email=email).exists():
+            return Response({'error': 'User is not registered.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = User.objects.filter(email=email).first()
+        forgot_password_otp = ForgotPasswordOTP.objects.filter(user=user).first()
+
+        if not forgot_password_otp or not forgot_password_otp.is_verified:
+            return Response({'error': 'OTP not verified.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user.set_password(new_password)
+        user.save()
+        forgot_password_otp.delete()
+
+        return Response({'message': 'Password reset successfully.'}, status=status.HTTP_200_OK)
+
+
+class ChangePasswordView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        old_password = request.data.get('old_password')
+        new_password = request.data.get('new_password')
+        confirm_password = request.data.get('confirm_password')
+
+        if not old_password or not new_password or not confirm_password:
+            return Response({'error': 'Old password, new password, and confirm password are required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not request.user.check_password(old_password):
+            return Response({'error': 'Incorrect old password'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if new_password != confirm_password:
+            return Response({'error': 'New passwords do not match'}, status=status.HTTP_400_BAD_REQUEST)
+
+        request.user.set_password(new_password)
+        request.user.save()
+
+        return Response({'message': 'Password changed successfully.'}, status=status.HTTP_200_OK)
