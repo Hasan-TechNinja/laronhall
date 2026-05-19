@@ -4,6 +4,13 @@ from . models import Product, Cart, Order
 from . serializers import ProductSerializer, CartSerializer, OrderSerializer
 from rest_framework import permissions, status
 from rest_framework.response import Response
+import stripe
+from django.conf import settings
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
+from django.contrib.auth.models import User
+
+stripe.api_key = settings.STRIPE_SECRET_KEY
 
 # Create your views here.
 
@@ -116,3 +123,87 @@ class CartDeleteView(APIView):
         
         cart_item.delete()
         return Response({"message": "Item removed from cart"}, status=status.HTTP_200_OK)
+
+
+class CreateCheckoutSessionView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        cart_items = Cart.objects.filter(user=request.user)
+        
+        if not cart_items.exists():
+            return Response({"error": "Cart is empty"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        line_items = []
+        for item in cart_items:
+            try:
+                # Stripe expects amount in cents
+                unit_amount = int(float(item.product.price) * 100)
+            except (ValueError, TypeError):
+                unit_amount = 0
+                
+            line_items.append({
+                'price_data': {
+                    'currency': 'usd',
+                    'product_data': {
+                        'name': item.product.name,
+                    },
+                    'unit_amount': unit_amount,
+                },
+                'quantity': item.quantity,
+            })
+            
+        try:
+            checkout_session = stripe.checkout.Session.create(
+                payment_method_types=['card'],
+                line_items=line_items,
+                mode='payment',
+                success_url=request.build_absolute_uri('/success/'),
+                cancel_url=request.build_absolute_uri('/cancel/'),
+                client_reference_id=str(request.user.id)
+            )
+            return Response({'sessionId': checkout_session.id, 'url': checkout_session.url})
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class StripeWebhookView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        payload = request.body
+        sig_header = request.META.get('HTTP_STRIPE_SIGNATURE')
+        event = None
+
+        try:
+            event = stripe.Webhook.construct_event(
+                payload, sig_header, settings.STRIPE_WEBHOOK_SECRET
+            )
+        except ValueError as e:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+        except stripe.error.SignatureVerificationError as e:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
+        if event['type'] == 'checkout.session.completed':
+            session = event['data']['object']
+            user_id = session.get('client_reference_id')
+            
+            if user_id:
+                try:
+                    user = User.objects.get(id=user_id)
+                    cart_items = Cart.objects.filter(user=user)
+                    
+                    for item in cart_items:
+                        Order.objects.create(
+                            user=user,
+                            product=item.product,
+                            quantity=item.quantity
+                        )
+                    
+                    # Clear the cart after placing order
+                    cart_items.delete()
+                except User.DoesNotExist:
+                    pass
+
+        return Response({'status': 'success'}, status=status.HTTP_200_OK)

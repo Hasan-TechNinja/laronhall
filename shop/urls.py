@@ -8,4 +8,6 @@ urlpatterns = [
     path('cart/', views.CartView.as_view(), name='cart'),
     path('cart/update/<int:id>/', views.CartUpdateView.as_view(), name='cart-update'),
     path('cart/delete/<int:id>/', views.CartDeleteView.as_view(), name='cart-delete'),
+    path('checkout/', views.CreateCheckoutSessionView.as_view(), name='checkout'),
+    path('webhook/', views.StripeWebhookView.as_view(), name='stripe-webhook'),
 ]
