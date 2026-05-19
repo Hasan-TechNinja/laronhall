@@ -26,6 +26,13 @@ class EventCreateInitView(APIView):
         if not type_slug or not start_date_str:
             return Response({'error': 'type (slug) and start_date are required'}, status=status.HTTP_400_BAD_REQUEST)
 
+        active_events = Event.objects.filter(
+            participants=request.user,
+            end_date__gte=timezone.now()
+        )
+        if active_events.exists():
+            return Response({'error': 'You cannot create a new event while participating in an active one'}, status=status.HTTP_400_BAD_REQUEST)
+
         start_date = parse_datetime(start_date_str)
         if not start_date:
             return Response({'error': 'Invalid start_date format. Use ISO format (e.g., YYYY-MM-DDTHH:MM:SSZ).'}, status=status.HTTP_400_BAD_REQUEST)
@@ -277,3 +284,22 @@ class EventFundraiserListView(APIView):
         fundraisers = Fundraiser.objects.filter(event=event)
         serializer = FundraiserSerializer(fundraisers, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class EventDeleteView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, id):
+        try:
+            event = Event.objects.get(id=id)
+        except Event.DoesNotExist:
+            return Response({'error': 'Event not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if event.creator != request.user:
+            return Response({'error': 'Only the creator can delete this event'}, status=status.HTTP_403_FORBIDDEN)
+
+        if event.end_date and event.end_date >= timezone.now():
+            return Response({'error': 'Cannot delete an active event before its end time is over'}, status=status.HTTP_400_BAD_REQUEST)
+
+        event.delete()
+        return Response({'message': 'Event deleted successfully'}, status=status.HTTP_200_OK)
