@@ -1,3 +1,4 @@
+from django.template.defaultfilters import default
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils.text import slugify
@@ -33,10 +34,27 @@ class Cart(models.Model):
 
 
 class Order(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='order')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='order', null=True, blank=True)
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='order')
     quantity = models.IntegerField(default=1)
+    
+    # Guest and Shipping Details
+    email = models.EmailField(blank=True, null=True)
+    phone = models.CharField(max_length=50, blank=True, null=True)
+    name = models.CharField(max_length=255, blank=True, null=True)
+    address = models.TextField(blank=True, null=True)
+    city = models.CharField(max_length=100, blank=True, null=True)
+    state = models.CharField(max_length=100, blank=True, null=True)
+    postal_code = models.CharField(max_length=50, blank=True, null=True)
+    country = models.CharField(max_length=100, blank=True, null=True)
+    
+    # Payment status
+    stripe_session_id = models.CharField(max_length=255, blank=True, null=True)
+    is_paid = models.BooleanField(default=False)
+    
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.user.email} - {self.product.name}"
+        if self.user:
+            return f"{self.user.email} - {self.product.name}"
+        return f"Guest ({self.email}) - {self.product.name}"

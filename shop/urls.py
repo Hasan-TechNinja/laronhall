@@ -9,5 +9,9 @@ urlpatterns = [
     path('cart/update/<int:id>/', views.CartUpdateView.as_view(), name='cart-update'),
     path('cart/delete/<int:id>/', views.CartDeleteView.as_view(), name='cart-delete'),
     path('checkout/', views.CreateCheckoutSessionView.as_view(), name='checkout'),
+    path('checkout/guest/', views.GuestCheckoutSessionView.as_view(), name='guest-checkout'),
     path('webhook/', views.StripeWebhookView.as_view(), name='stripe-webhook'),
+    path('payment/webhook/', views.StripeWebhookView.as_view(), name='stripe-webhook-alias'),
+    path('payment/success/', views.PaymentSuccessView.as_view(), name='payment-success'),
+    path('orders/', views.OrderView.as_view(), name='orders'),
 ]

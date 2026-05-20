@@ -25,7 +25,7 @@ class CartAdmin(admin.ModelAdmin):
 
 
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ('user', 'product', 'quantity', 'created_at')
+    list_display = ('id','user', 'product', 'quantity', 'email','phone', 'name','address','city','state', 'country')
     list_filter = ('user', 'product', 'quantity')
     search_fields = ('user', 'product', 'quantity')
     ordering = ('-created_at',)

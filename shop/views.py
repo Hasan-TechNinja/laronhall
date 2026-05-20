@@ -158,9 +158,15 @@ class CreateCheckoutSessionView(APIView):
                 payment_method_types=['card'],
                 line_items=line_items,
                 mode='payment',
-                success_url=request.build_absolute_uri('/success/'),
+                success_url=request.build_absolute_uri('/success/?session_id={CHECKOUT_SESSION_ID}'),
                 cancel_url=request.build_absolute_uri('/cancel/'),
-                client_reference_id=str(request.user.id)
+                client_reference_id=str(request.user.id),
+                shipping_address_collection={
+                    'allowed_countries': ['US', 'CA', 'GB', 'AU', 'NZ', 'DE', 'FR', 'IT', 'ES', 'NL'],
+                },
+                phone_number_collection={
+                    'enabled': True
+                },
             )
             return Response({'sessionId': checkout_session.id, 'url': checkout_session.url})
         except Exception as e:
@@ -185,25 +191,183 @@ class StripeWebhookView(APIView):
         except stripe.error.SignatureVerificationError as e:
             return Response(status=status.HTTP_400_BAD_REQUEST)
 
-        if event['type'] == 'checkout.session.completed':
-            session = event['data']['object']
-            user_id = session.get('client_reference_id')
-            
-            if user_id:
-                try:
-                    user = User.objects.get(id=user_id)
-                    cart_items = Cart.objects.filter(user=user)
-                    
-                    for item in cart_items:
-                        Order.objects.create(
-                            user=user,
-                            product=item.product,
-                            quantity=item.quantity
-                        )
-                    
-                    # Clear the cart after placing order
-                    cart_items.delete()
-                except User.DoesNotExist:
-                    pass
+        try:
+            if event['type'] == 'checkout.session.completed':
+                session = event['data']['object']
+                finalize_order(session)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         return Response({'status': 'success'}, status=status.HTTP_200_OK)
+
+class OrderView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        orders = Order.objects.filter(user=request.user, is_paid=True).order_by('-created_at')
+        serializer = OrderSerializer(orders, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+def finalize_order(session):
+    if session.payment_status != 'paid':
+        return
+
+    user_id = getattr(session, 'client_reference_id', None)
+    
+    customer_details = getattr(session, 'customer_details', None)
+    shipping_details = getattr(session, 'shipping_details', None)
+    
+    email = customer_details.email if customer_details else None
+    phone = customer_details.phone if customer_details else None
+    
+    address_obj = None
+    name = None
+    if shipping_details:
+        address_obj = shipping_details.address
+        name = shipping_details.name
+    elif customer_details:
+        address_obj = customer_details.address
+        name = customer_details.name
+        
+    address = f"{address_obj.line1} {address_obj.line2 or ''}".strip() if address_obj else None
+    city = address_obj.city if address_obj else None
+    state = address_obj.state if address_obj else None
+    postal_code = address_obj.postal_code if address_obj else None
+    country = address_obj.country if address_obj else None
+
+    # Handle Guest/Pre-created Orders
+    unpaid_orders = Order.objects.filter(stripe_session_id=session.id, is_paid=False)
+    if unpaid_orders.exists():
+        for order in unpaid_orders:
+            order.is_paid = True
+            order.email = email
+            order.phone = phone
+            order.name = name
+            order.address = address
+            order.city = city
+            order.state = state
+            order.postal_code = postal_code
+            order.country = country
+            if user_id:
+                try:
+                    order.user = User.objects.get(id=int(user_id))
+                except (User.DoesNotExist, ValueError, TypeError):
+                    pass
+            order.save()
+            
+        # Clear cart for user if user exists
+        if user_id:
+            try:
+                user = User.objects.get(id=int(user_id))
+                Cart.objects.filter(user=user).delete()
+            except (User.DoesNotExist, ValueError, TypeError):
+                pass
+
+    # Handle Legacy Authenticated Flow (if orders weren't created beforehand)
+    elif user_id:
+        try:
+            user = User.objects.get(id=int(user_id))
+            cart_items = Cart.objects.filter(user=user)
+            for item in cart_items:
+                Order.objects.create(
+                    user=user,
+                    product=item.product,
+                    quantity=item.quantity,
+                    is_paid=True,
+                    stripe_session_id=session.id,
+                    email=email,
+                    phone=phone,
+                    name=name,
+                    address=address,
+                    city=city,
+                    state=state,
+                    postal_code=postal_code,
+                    country=country
+                )
+            cart_items.delete()
+        except (User.DoesNotExist, ValueError, TypeError):
+            pass
+
+
+class PaymentSuccessView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        session_id = request.data.get('session_id')
+        if not session_id:
+            return Response({'error': 'Session ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            session = stripe.checkout.Session.retrieve(session_id)
+            if session.payment_status == 'paid':
+                finalize_order(session)
+                return Response({'message': 'Payment successful, order created.'}, status=status.HTTP_200_OK)
+            else:
+                return Response({'error': 'Payment not successful'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class GuestCheckoutSessionView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        cart = request.data.get('cart', [])
+        if not cart or not isinstance(cart, list):
+            return Response({"error": "Cart is empty or invalid format. Expecting a list of items under 'cart' key."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        line_items = []
+        order_items_to_create = []
+
+        for item in cart:
+            slug = item.get('slug')
+            quantity = item.get('quantity', 1)
+            try:
+                product = Product.objects.get(slug=slug)
+                unit_amount = int(float(product.price) * 100)
+                
+                line_items.append({
+                    'price_data': {
+                        'currency': 'usd',
+                        'product_data': {
+                            'name': product.name,
+                        },
+                        'unit_amount': unit_amount,
+                    },
+                    'quantity': quantity,
+                })
+                order_items_to_create.append((product, quantity))
+            except (Product.DoesNotExist, ValueError, TypeError):
+                continue
+                
+        if not line_items:
+            return Response({"error": "No valid products found"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            checkout_session = stripe.checkout.Session.create(
+                payment_method_types=['card'],
+                line_items=line_items,
+                mode='payment',
+                success_url=request.build_absolute_uri('/success/?session_id={CHECKOUT_SESSION_ID}'),
+                cancel_url=request.build_absolute_uri('/cancel/'),
+                shipping_address_collection={
+                    'allowed_countries': ['US', 'CA', 'GB', 'AU', 'NZ', 'DE', 'FR', 'IT', 'ES', 'NL'],
+                },
+                phone_number_collection={
+                    'enabled': True
+                },
+            )
+            
+            # Create unpaid orders beforehand to link them with session_id
+            for product, quantity in order_items_to_create:
+                Order.objects.create(
+                    product=product,
+                    quantity=quantity,
+                    stripe_session_id=checkout_session.id,
+                    is_paid=False
+                )
+                
+            return Response({'sessionId': checkout_session.id, 'url': checkout_session.url})
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+

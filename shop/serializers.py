@@ -23,6 +23,15 @@ class CartSerializer(serializers.ModelSerializer):
 
 
 class OrderSerializer(serializers.ModelSerializer):
+    product = ProductSerializer(read_only=True)
+    subtotal = serializers.SerializerMethodField()
+
     class Meta:
         model = Order
         fields = '__all__'
+        
+    def get_subtotal(self, obj):
+        try:
+            return float(obj.product.price) * obj.quantity
+        except (ValueError, TypeError):
+            return 0.0
