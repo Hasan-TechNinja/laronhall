@@ -162,3 +162,7 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# Migrations
+**/migrations/*.py
+!**/migrations/__init__.py
