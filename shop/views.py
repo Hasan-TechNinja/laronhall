@@ -41,6 +41,7 @@ class AddToCart(APIView):
     def post(self, request):
         slug = request.data.get('slug') 
         quantity = request.data.get('quantity')
+        fundraiser_id = request.data.get('fundraiser_id')
 
         if not slug:
             return Response({"error": "Please provide product slug"}, status=status.HTTP_400_BAD_REQUEST)
@@ -55,13 +56,21 @@ class AddToCart(APIView):
         except Product.DoesNotExist:
             return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        if Cart.objects.filter(user=request.user, product=product).exists():
-            cart = Cart.objects.get(user=request.user, product=product)
+        fundraiser = None
+        if fundraiser_id:
+            from event.models import Fundraiser
+            try:
+                fundraiser = Fundraiser.objects.get(id=fundraiser_id)
+            except Fundraiser.DoesNotExist:
+                return Response({"error": "Fundraiser not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        if Cart.objects.filter(user=request.user, product=product, fundraiser=fundraiser).exists():
+            cart = Cart.objects.get(user=request.user, product=product, fundraiser=fundraiser)
             cart.quantity += quantity
             cart.save()
             return Response({"message": "Product added to cart"}, status=status.HTTP_200_OK)
             
-        cart = Cart.objects.create(user=request.user, product=product, quantity=quantity)
+        cart = Cart.objects.create(user=request.user, product=product, quantity=quantity, fundraiser=fundraiser)
         return Response({"message": "Product added to cart"}, status=status.HTTP_201_CREATED)
 
 
@@ -271,6 +280,7 @@ def finalize_order(session):
             for item in cart_items:
                 Order.objects.create(
                     user=user,
+                    fundraiser=item.fundraiser,
                     product=item.product,
                     quantity=item.quantity,
                     is_paid=True,
@@ -322,6 +332,7 @@ class GuestCheckoutSessionView(APIView):
         for item in cart:
             slug = item.get('slug')
             quantity = item.get('quantity', 1)
+            fundraiser_id = item.get('fundraiser_id')
             try:
                 product = Product.objects.get(slug=slug)
                 unit_amount = int(float(product.price) * 100)
@@ -336,7 +347,7 @@ class GuestCheckoutSessionView(APIView):
                     },
                     'quantity': quantity,
                 })
-                order_items_to_create.append((product, quantity))
+                order_items_to_create.append((product, quantity, fundraiser_id))
             except (Product.DoesNotExist, ValueError, TypeError):
                 continue
                 
@@ -359,10 +370,16 @@ class GuestCheckoutSessionView(APIView):
             )
             
             # Create unpaid orders beforehand to link them with session_id
-            for product, quantity in order_items_to_create:
+            for product, quantity, fundraiser_id in order_items_to_create:
+                fundraiser = None
+                if fundraiser_id:
+                    from event.models import Fundraiser
+                    fundraiser = Fundraiser.objects.filter(id=fundraiser_id).first()
+                    
                 Order.objects.create(
                     product=product,
                     quantity=quantity,
+                    fundraiser=fundraiser,
                     stripe_session_id=checkout_session.id,
                     is_paid=False
                 )

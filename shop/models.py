@@ -25,6 +25,7 @@ class Product(models.Model):
 
 class Cart(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='cart')
+    fundraiser = models.ForeignKey('event.Fundraiser', on_delete=models.SET_NULL, null=True, blank=True, related_name='carts')
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='cart')
     quantity = models.IntegerField(default=1)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -35,6 +36,7 @@ class Cart(models.Model):
 
 class Order(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='order', null=True, blank=True)
+    fundraiser = models.ForeignKey('event.Fundraiser', on_delete=models.SET_NULL, null=True, blank=True, related_name='orders')
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='order')
     quantity = models.IntegerField(default=1)
     
