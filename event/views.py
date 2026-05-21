@@ -1,3 +1,4 @@
+from rest_framework.permissions import AllowAny
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -119,17 +120,46 @@ class EventDetailView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
+class EventDetailedView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, id):
+        try:
+            event = Event.objects.get(id=id)
+        except Event.DoesNotExist:
+            return Response({'error': 'Event not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        from .serializers import EventDetailedSerializer
+        serializer = EventDetailedSerializer(event)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
 class MyEventsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        events = Event.objects.filter(participants=request.user)
+        events = Event.objects.filter(
+            participants=request.user,
+            end_date__gte=timezone.now()
+        ).order_by('-start_date')
+        serializer = EventSerializer(events, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class MyEventsHistoryView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        events = Event.objects.filter(
+            participants=request.user,
+            end_date__lt=timezone.now()
+        ).order_by('-end_date')
         serializer = EventSerializer(events, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class OrganizationTypeListView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     def get(self, request):
         organization_types = OrganizationType.objects.all()
@@ -303,3 +333,68 @@ class EventDeleteView(APIView):
 
         event.delete()
         return Response({'message': 'Event deleted successfully'}, status=status.HTTP_200_OK)
+
+class EventLeaderboardView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, event_id):
+        try:
+            event = Event.objects.get(id=event_id)
+        except Event.DoesNotExist:
+            return Response({'error': 'Event not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        fundraisers = Fundraiser.objects.filter(event=event)
+        serializer = FundraiserSerializer(fundraisers, many=True)
+        
+        # Sort the data by the 'achieved' amount in descending order
+        sorted_data = sorted(serializer.data, key=lambda x: x.get('achieved', 0), reverse=True)
+        
+        # Add rank based on position
+        for index, item in enumerate(sorted_data):
+            item['rank'] = index + 1
+
+        return Response(sorted_data, status=status.HTTP_200_OK)
+
+class FundraiserSupporterListView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, id):
+        try:
+            fundraiser = Fundraiser.objects.get(id=id)
+        except Fundraiser.DoesNotExist:
+            return Response({'error': 'Fundraiser not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        from shop.models import Order
+        from django.db.models.functions import Coalesce, Cast
+        from django.db.models import Sum, Count, F, FloatField
+
+        orders = Order.objects.filter(fundraiser=fundraiser, is_paid=True).annotate(
+            supporter_email=Coalesce('user__email', 'email'),
+            supporter_name=Coalesce('user__profile__full_name', 'name')
+        ).values(
+            'supporter_email',
+            'supporter_name',
+            'user__profile__image'
+        ).annotate(
+            total_orders=Count('id'),
+            total_amount=Sum(
+                Cast(F('product__price'), FloatField()) * F('quantity'),
+                output_field=FloatField()
+            )
+        ).order_by('-total_amount')
+
+        supporters = []
+        for order in orders:
+            image_url = None
+            if order.get('user__profile__image'):
+                image_url = request.build_absolute_uri('/media/' + order.get('user__profile__image'))
+            
+            supporters.append({
+                'name': order.get('supporter_name'),
+                'email': order.get('supporter_email'),
+                'image': image_url,
+                'total_purchased_amount': order.get('total_amount', 0),
+                'total_orders': order.get('total_orders', 0)
+            })
+
+        return Response(supporters, status=status.HTTP_200_OK)
