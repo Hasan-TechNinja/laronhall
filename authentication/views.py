@@ -6,8 +6,8 @@ from rest_framework import status, permissions
 from django.core.mail import send_mail
 from django.conf import settings
 import random
-from . models import RegisterOTP, Profile, ForgotPasswordOTP
-from . serializers import ProfileSerializer
+from . models import RegisterOTP, Profile, ForgotPasswordOTP, PrivacyPolicy, TermsAndCondition
+from . serializers import ProfileSerializer, PrivacyPolicySerializer, TermsAndConditionSerializer
 from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 
 
@@ -229,3 +229,17 @@ class ChangePasswordView(APIView):
         request.user.save()
 
         return Response({'message': 'Password changed successfully.'}, status=status.HTTP_200_OK)
+
+
+class PrivacyPolicyView(APIView):
+    def get(self, request):
+        privacy_policy = PrivacyPolicy.objects.filter().first()
+        serializer = PrivacyPolicySerializer(privacy_policy)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class TermsAndConditionView(APIView):
+    def get(self, request):
+        terms_and_condition = TermsAndCondition.objects.filter().first()
+        serializer = TermsAndConditionSerializer(terms_and_condition)
+        return Response(serializer.data, status=status.HTTP_200_OK)
