@@ -274,6 +274,33 @@ class FundraiserUpdateDescriptionView(APIView):
         return Response({'message': 'Description updated', 'fundraiser': serializer.data}, status=status.HTTP_200_OK)
 
 
+class FundraiserUpdateMediaView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request, id):
+        try:
+            fundraiser = Fundraiser.objects.get(id=id, user=request.user)
+        except Fundraiser.DoesNotExist:
+            return Response({'error': 'Fundraiser not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if 'image' not in request.FILES and 'image' not in request.data and 'video' not in request.FILES and 'video' not in request.data:
+            return Response({'error': 'Please provide either an image or a video.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if 'image' in request.FILES:
+            fundraiser.image = request.FILES['image']
+        elif 'image' in request.data:
+            fundraiser.image = request.data['image']
+            
+        if 'video' in request.FILES:
+            fundraiser.video = request.FILES['video']
+        elif 'video' in request.data:
+            fundraiser.video = request.data['video']
+
+        fundraiser.save()
+        serializer = FundraiserSerializer(fundraiser)
+        return Response({'message': 'Media updated', 'fundraiser': serializer.data}, status=status.HTTP_200_OK)
+
+
 class EventExtendView(APIView):
     permission_classes = [IsAuthenticated]
 
