@@ -23,6 +23,10 @@ class EventCreateInitView(APIView):
     def post(self, request):
         type_slug = request.data.get('type')
         start_date_str = request.data.get('start_date')
+        estimated_participants = request.data.get('estimated_participants')
+        min_estimated_earning = request.data.get('min_estimated_earning')
+        max_estimated_earning = request.data.get('max_estimated_earning')
+        team_name = request.data.get('team_name')
 
         if not type_slug or not start_date_str:
             return Response({'error': 'type (slug) and start_date are required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -48,63 +52,22 @@ class EventCreateInitView(APIView):
         code = code.upper()
 
         event = Event.objects.create(
+            name=team_name,
             type=org_type,
             start_date=start_date,
             end_date=end_date,
             code=code,
             duration="5",
-            creator=request.user
+            creator=request.user,
+            estimated_participants=estimated_participants,
+            min_estimated_earning=min_estimated_earning,
+            max_estimated_earning=max_estimated_earning
         )
         event.participants.add(request.user)
         Fundraiser.objects.get_or_create(user=request.user, event=event)
         
         serializer = EventSerializer(event)
         return Response({'message': 'Event initialized', 'event': serializer.data}, status=status.HTTP_201_CREATED)
-
-class EventUpdateNameView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def put(self, request, id):
-        name = request.data.get('name')
-        if not name:
-            return Response({'error': 'name is required'}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            event = Event.objects.get(id=id)
-        except Event.DoesNotExist:
-            return Response({'error': 'Event not found'}, status=status.HTTP_404_NOT_FOUND)
-
-        event.name = name
-        event.save()
-
-        serializer = EventSerializer(event)
-        return Response({'message': 'Event name updated', 'event': serializer.data}, status=status.HTTP_200_OK)
-
-
-class EventUpdateEstimatesView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def put(self, request, id):
-        estimated_participants = request.data.get('estimated_participants')
-        min_estimated_earning = request.data.get('min_estimated_earning')
-        max_estimated_earning = request.data.get('max_estimated_earning')
-
-        try:
-            event = Event.objects.get(id=id)
-        except Event.DoesNotExist:
-            return Response({'error': 'Event not found'}, status=status.HTTP_404_NOT_FOUND)
-
-        if estimated_participants is not None:
-            event.estimated_participants = estimated_participants
-        if min_estimated_earning is not None:
-            event.min_estimated_earning = min_estimated_earning
-        if max_estimated_earning is not None:
-            event.max_estimated_earning = max_estimated_earning
-
-        event.save()
-
-        serializer = EventSerializer(event)
-        return Response({'message': 'Event estimates updated', 'event': serializer.data}, status=status.HTTP_200_OK)
 
 
 class EventDetailView(APIView):

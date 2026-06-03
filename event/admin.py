@@ -13,7 +13,7 @@ class OrganizationTypeAdmin(admin.ModelAdmin):
 
 @admin.register(Event)
 class EventAdmin(admin.ModelAdmin):
-    list_display = ('name', 'type', 'start_date', 'end_date', 'code', 'is_active')
+    list_display = ('id','name', 'type', 'start_date', 'end_date', 'code', 'is_active')
     list_filter = ('is_active', 'type', 'start_date', 'end_date')
     search_fields = ('name', 'code')
     ordering = ('-start_date',)

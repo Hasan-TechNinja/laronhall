@@ -79,7 +79,11 @@ class RegisterOTPVerificationView(APIView):
         user.save()
         register_otp.is_verified = True
         register_otp.save()
-        return Response({'error': 'Email verified successfully.'}, status=status.HTTP_200_OK)
+        
+        refresh = RefreshToken.for_user(user)
+        access = refresh.access_token
+
+        return Response({'access': str(access), 'refresh': str(refresh)}, status=status.HTTP_200_OK)
 
 
 class LoginView(APIView):
