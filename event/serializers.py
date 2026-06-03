@@ -1,8 +1,29 @@
 from rest_framework import serializers
-
 from .models import OrganizationType, Event, Fundraiser
 from shop.models import Order
 from django.utils import timezone
+from django.contrib.auth.models import User
+
+class UserProfileMinSerializer(serializers.ModelSerializer):
+    full_name = serializers.SerializerMethodField()
+    image = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = ['id', 'email', 'full_name', 'image']
+
+    def get_full_name(self, obj):
+        if hasattr(obj, 'profile'):
+            return obj.profile.full_name
+        return None
+
+    def get_image(self, obj):
+        if hasattr(obj, 'profile') and obj.profile.image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.profile.image.url)
+            return obj.profile.image.url
+        return None
 
 class OrganizationTypeSerializer(serializers.ModelSerializer):
     class Meta:
@@ -10,18 +31,80 @@ class OrganizationTypeSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 class EventSerializer(serializers.ModelSerializer):
+    creator = UserProfileMinSerializer(read_only=True)
+    participants = serializers.SerializerMethodField()
+    status = serializers.SerializerMethodField()
+
     class Meta:
         model = Event
         fields = "__all__"
+
+    def get_status(self, obj):
+        now = timezone.now()
+        if obj.start_date and obj.end_date:
+            if obj.start_date > now:
+                return "Upcoming"
+            elif obj.start_date <= now <= obj.end_date:
+                return "Ongoing"
+            else:
+                return "Completed"
+        elif obj.start_date:
+            if obj.start_date > now:
+                return "Upcoming"
+            else:
+                return "Ongoing"
+        return "Unknown"
+
+    def get_participants(self, obj):
+        participants = obj.participants.all()
+        request = self.context.get('request')
+        result = []
+        
+        # We also need Fundraiser and Order to calculate shop data
+        from shop.models import Order
+        
+        for user in participants:
+            full_name = None
+            image_url = None
+            if hasattr(user, 'profile'):
+                full_name = user.profile.full_name
+                if user.profile.image:
+                    image_url = user.profile.image.url
+                    if request:
+                        image_url = request.build_absolute_uri(image_url)
+            
+            shop_goal = 0.0
+            shop_achieved = 0.0
+            fundraiser = Fundraiser.objects.filter(user=user, event=obj).first()
+            
+            if fundraiser:
+                shop_goal = float(fundraiser.goal) if fundraiser.goal else 0.0
+                orders = Order.objects.filter(fundraiser=fundraiser, is_paid=True)
+                for order in orders:
+                    try:
+                        shop_achieved += float(order.product.price) * order.quantity
+                    except (ValueError, TypeError):
+                        pass
+
+            result.append({
+                'id': user.id,
+                'email': user.email,
+                'full_name': full_name,
+                'image': image_url,
+                'shop_goal': shop_goal,
+                'shop_achieved': shop_achieved
+            })
+        return result
 
 class EventDetailedSerializer(serializers.ModelSerializer):
     organizer_name = serializers.SerializerMethodField()
     category_name = serializers.SerializerMethodField()
     starts_in = serializers.SerializerMethodField()
+    status = serializers.SerializerMethodField()
     
     class Meta:
         model = Event
-        fields = ['id', 'name', 'organizer_name', 'start_date', 'end_date', 'category_name', 'starts_in', 'code', 'duration', 'is_active', 'min_estimated_earning', 'max_estimated_earning', 'estimated_participants']
+        fields = ['id', 'name', 'organizer_name', 'start_date', 'end_date', 'category_name', 'starts_in', 'code', 'duration', 'is_active', 'min_estimated_earning', 'max_estimated_earning', 'estimated_participants', 'status']
 
     def get_organizer_name(self, obj):
         if obj.creator:
@@ -52,6 +135,22 @@ class EventDetailedSerializer(serializers.ModelSerializer):
                 
             return " ".join(parts)
         return "Started"
+
+    def get_status(self, obj):
+        now = timezone.now()
+        if obj.start_date and obj.end_date:
+            if obj.start_date > now:
+                return "Upcoming"
+            elif obj.start_date <= now <= obj.end_date:
+                return "Ongoing"
+            else:
+                return "Completed"
+        elif obj.start_date:
+            if obj.start_date > now:
+                return "Upcoming"
+            else:
+                return "Ongoing"
+        return "Unknown"
 
 class FundraiserSerializer(serializers.ModelSerializer):
     achieved = serializers.SerializerMethodField()
