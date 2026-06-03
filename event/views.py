@@ -180,6 +180,18 @@ class FundraiserDetailView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
+class MyFundraiserDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, event_id):
+        try:
+            fundraiser = Fundraiser.objects.get(event_id=event_id, user=request.user)
+        except Fundraiser.DoesNotExist:
+            return Response({'error': 'Fundraiser not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        serializer = FundraiserSerializer(fundraiser)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
 class FundraiserUpdateNameView(APIView):
     permission_classes = [IsAuthenticated]
 

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import OrganizationType, Event
+from .models import OrganizationType, Event, Fundraiser
 
 # Register your models here.
 
@@ -17,3 +17,11 @@ class EventAdmin(admin.ModelAdmin):
     list_filter = ('is_active', 'type', 'start_date', 'end_date')
     search_fields = ('name', 'code')
     ordering = ('-start_date',)
+
+
+@admin.register(Fundraiser)
+class FundraiserAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'event', 'goal', 'created_at', 'updated_at')
+    list_filter = ('user', 'event', 'created_at', 'updated_at')
+    search_fields = ('user__email', 'event__code')
+    ordering = ('-created_at',)
