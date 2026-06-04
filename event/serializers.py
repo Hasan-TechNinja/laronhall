@@ -94,9 +94,11 @@ class EventSerializer(serializers.ModelSerializer):
             
             shop_goal = 0.0
             shop_achieved = 0.0
+            total_supporters = 0
             fundraiser = Fundraiser.objects.filter(user=user, event=obj).first()
             
             if fundraiser:
+                from django.db.models.functions import Coalesce
                 shop_goal = float(fundraiser.goal) if fundraiser.goal else 0.0
                 orders = Order.objects.filter(fundraiser=fundraiser, is_paid=True)
                 for order in orders:
@@ -104,6 +106,10 @@ class EventSerializer(serializers.ModelSerializer):
                         shop_achieved += float(order.product.price) * order.quantity
                     except (ValueError, TypeError):
                         pass
+                
+                total_supporters = orders.annotate(
+                    supporter_email=Coalesce('user__email', 'email')
+                ).values('supporter_email').distinct().count()
 
             result.append({
                 'id': user.id,
@@ -111,7 +117,8 @@ class EventSerializer(serializers.ModelSerializer):
                 'full_name': full_name,
                 'image': image_url,
                 'shop_goal': shop_goal,
-                'shop_achieved': shop_achieved
+                'shop_achieved': shop_achieved,
+                'total_supporters': total_supporters
             })
         return result
 
