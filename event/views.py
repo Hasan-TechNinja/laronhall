@@ -70,6 +70,54 @@ class EventCreateInitView(APIView):
         return Response({'message': 'Event initialized', 'event': serializer.data}, status=status.HTTP_201_CREATED)
 
 
+class EventUpdateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request, id):
+        try:
+            event = Event.objects.get(id=id)
+        except Event.DoesNotExist:
+            return Response({'error': 'Event not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if event.creator != request.user:
+            return Response({'error': 'Only the creator can update this event'}, status=status.HTTP_403_FORBIDDEN)
+
+        type_slug = request.data.get('type')
+        start_date_str = request.data.get('start_date')
+        estimated_participants = request.data.get('estimated_participants')
+        min_estimated_earning = request.data.get('min_estimated_earning')
+        max_estimated_earning = request.data.get('max_estimated_earning')
+        team_name = request.data.get('name')
+
+        if type_slug:
+            try:
+                org_type = OrganizationType.objects.get(slug=type_slug)
+                event.type = org_type
+            except OrganizationType.DoesNotExist:
+                return Response({'error': 'Invalid OrganizationType slug'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if start_date_str:
+            start_date = parse_datetime(start_date_str)
+            if not start_date:
+                return Response({'error': 'Invalid start_date format.'}, status=status.HTTP_400_BAD_REQUEST)
+            event.start_date = start_date
+            if event.duration:
+                event.end_date = start_date + timedelta(days=int(event.duration))
+            
+        if estimated_participants is not None:
+            event.estimated_participants = estimated_participants
+        if min_estimated_earning is not None:
+            event.min_estimated_earning = min_estimated_earning
+        if max_estimated_earning is not None:
+            event.max_estimated_earning = max_estimated_earning
+        if team_name is not None:
+            event.name = team_name
+
+        event.save()
+        serializer = EventSerializer(event)
+        return Response({'message': 'Event updated successfully', 'event': serializer.data}, status=status.HTTP_200_OK)
+
+
 class EventDetailView(APIView):
     permission_classes = [IsAuthenticated]
 

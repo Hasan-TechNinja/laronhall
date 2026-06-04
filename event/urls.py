@@ -3,6 +3,7 @@ from . import views
 urlpatterns = [
     path('organization-types/', views.OrganizationTypeListView.as_view(), name='organization-types'),
     path('create/', views.EventCreateInitView.as_view(), name='event-create'),
+    path('<int:id>/update/', views.EventUpdateView.as_view(), name='event-update'),
     path('my-events/', views.MyEventsView.as_view(), name='my-events'),
     path('my-events/history/', views.MyEventsHistoryView.as_view(), name='my-events-history'),
     path('<int:id>/', views.EventDetailView.as_view(), name='event-detail'),

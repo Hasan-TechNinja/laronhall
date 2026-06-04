@@ -17,8 +17,7 @@ class ProfileSerializer(serializers.ModelSerializer):
         
         now = timezone.now()
         return Event.objects.filter(
-            participants=obj.user,
-            start_date__lte=now
+            participants=obj.user
         ).filter(
             Q(end_date__gte=now) | Q(end_date__isnull=True)
         ).exists()
