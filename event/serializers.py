@@ -34,10 +34,22 @@ class EventSerializer(serializers.ModelSerializer):
     creator = UserProfileMinSerializer(read_only=True)
     participants = serializers.SerializerMethodField()
     status = serializers.SerializerMethodField()
+    total_achieved = serializers.SerializerMethodField()
 
     class Meta:
         model = Event
         fields = "__all__"
+
+    def get_total_achieved(self, obj):
+        from shop.models import Order
+        total = 0.0
+        orders = Order.objects.filter(fundraiser__event=obj, is_paid=True)
+        for order in orders:
+            try:
+                total += float(order.product.price) * order.quantity
+            except (ValueError, TypeError):
+                pass
+        return total
 
     def get_status(self, obj):
         now = timezone.now()
@@ -101,10 +113,22 @@ class EventDetailedSerializer(serializers.ModelSerializer):
     category_name = serializers.SerializerMethodField()
     starts_in = serializers.SerializerMethodField()
     status = serializers.SerializerMethodField()
+    total_achieved = serializers.SerializerMethodField()
     
     class Meta:
         model = Event
-        fields = ['id', 'name', 'organizer_name', 'start_date', 'end_date', 'category_name', 'starts_in', 'code', 'duration', 'is_active', 'min_estimated_earning', 'max_estimated_earning', 'estimated_participants', 'status']
+        fields = ['id', 'name', 'organizer_name', 'start_date', 'end_date', 'category_name', 'starts_in', 'code', 'duration', 'is_active', 'min_estimated_earning', 'max_estimated_earning', 'estimated_participants', 'status', 'total_achieved']
+
+    def get_total_achieved(self, obj):
+        from shop.models import Order
+        total = 0.0
+        orders = Order.objects.filter(fundraiser__event=obj, is_paid=True)
+        for order in orders:
+            try:
+                total += float(order.product.price) * order.quantity
+            except (ValueError, TypeError):
+                pass
+        return total
 
     def get_organizer_name(self, obj):
         if obj.creator:
