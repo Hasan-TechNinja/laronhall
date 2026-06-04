@@ -35,10 +35,17 @@ class EventSerializer(serializers.ModelSerializer):
     participants = serializers.SerializerMethodField()
     status = serializers.SerializerMethodField()
     total_achieved = serializers.SerializerMethodField()
+    is_mine = serializers.SerializerMethodField()
 
     class Meta:
         model = Event
         fields = "__all__"
+
+    def get_is_mine(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return obj.creator == request.user
+        return False
 
     def get_total_achieved(self, obj):
         from shop.models import Order
@@ -114,10 +121,17 @@ class EventDetailedSerializer(serializers.ModelSerializer):
     starts_in = serializers.SerializerMethodField()
     status = serializers.SerializerMethodField()
     total_achieved = serializers.SerializerMethodField()
+    is_mine = serializers.SerializerMethodField()
     
     class Meta:
         model = Event
-        fields = ['id', 'name', 'organizer_name', 'start_date', 'end_date', 'category_name', 'starts_in', 'code', 'duration', 'is_active', 'min_estimated_earning', 'max_estimated_earning', 'estimated_participants', 'status', 'total_achieved']
+        fields = ['id', 'name', 'organizer_name', 'start_date', 'end_date', 'category_name', 'starts_in', 'code', 'duration', 'is_active', 'min_estimated_earning', 'max_estimated_earning', 'estimated_participants', 'status', 'total_achieved', 'is_mine']
+
+    def get_is_mine(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return obj.creator == request.user
+        return False
 
     def get_total_achieved(self, obj):
         from shop.models import Order
