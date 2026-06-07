@@ -448,3 +448,65 @@ class FundraiserSupporterListView(APIView):
             })
 
         return Response(supporters, status=status.HTTP_200_OK)
+
+
+class FundraiserPublicView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, id):
+        try:
+            fundraiser = Fundraiser.objects.get(id=id)
+        except Fundraiser.DoesNotExist:
+            return Response({'error': 'Fundraiser not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        event = fundraiser.event
+        from .serializers import EventDetailedSerializer, FundraiserSerializer
+        
+        shop_serializer = FundraiserSerializer(fundraiser, context={'request': request})
+        event_serializer = EventDetailedSerializer(event, context={'request': request})
+        
+        all_fundraisers = Fundraiser.objects.filter(event=event)
+        leaderboard_serializer = FundraiserSerializer(all_fundraisers, many=True, context={'request': request})
+        leaderboard_data = sorted(leaderboard_serializer.data, key=lambda x: x.get('achieved', 0), reverse=True)
+        for index, item in enumerate(leaderboard_data):
+            item['rank'] = index + 1
+            
+        from shop.models import Order
+        from django.db.models.functions import Coalesce, Cast
+        from django.db.models import Sum, Count, F, FloatField
+        
+        orders = Order.objects.filter(fundraiser=fundraiser, is_paid=True).annotate(
+            supporter_email=Coalesce('user__email', 'email'),
+            supporter_name=Coalesce('user__profile__full_name', 'name')
+        ).values(
+            'supporter_email',
+            'supporter_name',
+            'user__profile__image'
+        ).annotate(
+            total_orders=Count('id'),
+            total_amount=Sum(
+                Cast(F('product__price'), FloatField()) * F('quantity'),
+                output_field=FloatField()
+            )
+        ).order_by('-total_amount')
+
+        supporters = []
+        for order in orders:
+            image_url = None
+            if order.get('user__profile__image'):
+                image_url = request.build_absolute_uri('/media/' + order.get('user__profile__image'))
+            
+            supporters.append({
+                'name': order.get('supporter_name'),
+                'email': order.get('supporter_email'),
+                'image': image_url,
+                'total_purchased_amount': order.get('total_amount', 0),
+                'total_orders': order.get('total_orders', 0)
+            })
+
+        return Response({
+            'shop': shop_serializer.data,
+            'event': event_serializer.data,
+            'leaderboard': leaderboard_data,
+            'recent_supporters': supporters
+        }, status=status.HTTP_200_OK)

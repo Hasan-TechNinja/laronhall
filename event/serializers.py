@@ -199,10 +199,15 @@ class EventDetailedSerializer(serializers.ModelSerializer):
 
 class FundraiserSerializer(serializers.ModelSerializer):
     achieved = serializers.SerializerMethodField()
+    user_profile = UserProfileMinSerializer(source='user', read_only=True)
+    share_link = serializers.SerializerMethodField()
 
     class Meta:
         model = Fundraiser
         fields = "__all__"
+
+    def get_share_link(self, obj):
+        return f"https://intensely-optimal-unicorn.ngrok-free.app/shop/{obj.id}"
 
     def get_achieved(self, obj):
         orders = Order.objects.filter(fundraiser=obj, is_paid=True)
