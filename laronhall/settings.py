@@ -14,6 +14,8 @@ from pathlib import Path
 from datetime import timedelta
 from . import settings
 from decouple import config
+import firebase_admin
+from firebase_admin import credentials
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -45,6 +47,7 @@ INSTALLED_APPS = [
     'authentication',
     'event',
     'shop',
+    'notification',
 
     'corsheaders',
     'rest_framework',
@@ -220,3 +223,9 @@ SIMPLE_JWT = {
     "REVOKE_TOKEN_CLAIM": "hash_password",
     "CHECK_USER_IS_ACTIVE": True,
 }
+
+# Firebase Setup
+firebase_cred_path = BASE_DIR / 'floruit-app-firebase-adminsdk-fbsvc-12a0a88c54.json'
+if firebase_cred_path.exists() and not firebase_admin._apps:
+    cred = credentials.Certificate(firebase_cred_path)
+    firebase_admin.initialize_app(cred)

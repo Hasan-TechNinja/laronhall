@@ -10,6 +10,7 @@ from datetime import timedelta
 from django.utils.dateparse import parse_datetime
 import random
 import string
+from notification.utils import send_push_notification
 
 def generate_unique_code():
     while True:
@@ -211,6 +212,15 @@ class EventJoinView(APIView):
         # Create fundraiser record if not exists
         fundraiser, created = Fundraiser.objects.get_or_create(user=request.user, event=event)
         
+        # Send push notification to event creator
+        if event.creator and event.creator != request.user:
+            send_push_notification(
+                user=event.creator,
+                title="New Event Participant",
+                body=f"A new user ({request.user.email}) has joined your event '{event.name}'.",
+                data={"event_id": str(event.id), "type": "event_join"}
+            )
+        
         serializer = FundraiserSerializer(fundraiser)
         return Response({'message': 'Joined successfully', 'fundraiser': serializer.data}, status=status.HTTP_200_OK)
 
@@ -253,8 +263,19 @@ class FundraiserUpdateNameView(APIView):
         except Fundraiser.DoesNotExist:
             return Response({'error': 'Fundraiser not found'}, status=status.HTTP_404_NOT_FOUND)
 
+        is_first_time = not bool(fundraiser.name)
         fundraiser.name = name
         fundraiser.save()
+
+        # Send push notification if updating for the first time (creating shop)
+        if is_first_time and fundraiser.event.creator and fundraiser.event.creator != request.user:
+            send_push_notification(
+                user=fundraiser.event.creator,
+                title="New Shop Created",
+                body=f"A new shop '{name}' has been created in your event '{fundraiser.event.name}'.",
+                data={"event_id": str(fundraiser.event.id), "fundraiser_id": str(fundraiser.id), "type": "shop_created"}
+            )
+
         serializer = FundraiserSerializer(fundraiser)
         return Response({'message': 'Name updated', 'fundraiser': serializer.data}, status=status.HTTP_200_OK)
 

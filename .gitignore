@@ -166,3 +166,4 @@ Thumbs.db
 # Migrations
 **/migrations/*.py
 !**/migrations/__init__.py
+floruit-app-firebase-adminsdk-fbsvc-12a0a88c54.json

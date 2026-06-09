@@ -9,6 +9,7 @@ from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.contrib.auth.models import User
+from notification.utils import send_push_notification
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
@@ -264,6 +265,14 @@ def finalize_order(session):
                     pass
             order.save()
             
+            if order.fundraiser and order.fundraiser.user:
+                send_push_notification(
+                    user=order.fundraiser.user,
+                    title="New Order Received",
+                    body=f"Someone purchased '{order.product.name}' from your shop.",
+                    data={"fundraiser_id": str(order.fundraiser.id), "order_id": str(order.id), "type": "new_order"}
+                )
+            
         # Clear cart for user if user exists
         if user_id:
             try:
@@ -294,6 +303,14 @@ def finalize_order(session):
                     postal_code=postal_code,
                     country=country
                 )
+                
+                if order.fundraiser and order.fundraiser.user:
+                    send_push_notification(
+                        user=order.fundraiser.user,
+                        title="New Order Received",
+                        body=f"Someone purchased '{order.product.name}' from your shop.",
+                        data={"fundraiser_id": str(order.fundraiser.id), "order_id": str(order.id), "type": "new_order"}
+                    )
             cart_items.delete()
         except (User.DoesNotExist, ValueError, TypeError):
             pass
