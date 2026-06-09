@@ -26,6 +26,22 @@ class RegisterDeviceTokenView(APIView):
 
         return Response({'message': 'Token registered successfully'}, status=status.HTTP_200_OK)
 
+class DeregisterDeviceTokenView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        token = request.data.get('token')
+        if not token:
+            return Response({'error': 'Token is required'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            device_token = DeviceToken.objects.get(user=request.user, token=token)
+            device_token.is_active = False
+            device_token.save()
+            return Response({'message': 'Token deregistered successfully'}, status=status.HTTP_200_OK)
+        except DeviceToken.DoesNotExist:
+            return Response({'error': 'Token not found'}, status=status.HTTP_404_NOT_FOUND)
+
 class NotificationListView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 

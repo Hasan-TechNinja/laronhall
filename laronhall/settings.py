@@ -225,7 +225,7 @@ SIMPLE_JWT = {
 }
 
 # Firebase Setup
-firebase_cred_path = BASE_DIR / 'floruit-app-firebase-adminsdk-fbsvc-12a0a88c54.json'
+firebase_cred_path = BASE_DIR / 'treats-island-c407a-firebase-adminsdk-fbsvc-eeef1b1d13.json'
 if firebase_cred_path.exists() and not firebase_admin._apps:
     cred = credentials.Certificate(firebase_cred_path)
     firebase_admin.initialize_app(cred)
