@@ -89,9 +89,13 @@ class CartView(APIView):
             except (ValueError, TypeError):
                 pass
                 
+        delivery_charge = 5.00 if cart.exists() else 0.00
+
         return Response({
             "items": serializer.data,
-            "cart_total": cart_total
+            "subtotal": cart_total,
+            "delivery_charge": delivery_charge,
+            "cart_total": cart_total + delivery_charge
         })
 
 
@@ -163,6 +167,8 @@ class CreateCheckoutSessionView(APIView):
                 'quantity': item.quantity,
             })
             
+        delivery_charge_dollars = 5.00  # $5.00 delivery charge
+            
         try:
             checkout_session = stripe.checkout.Session.create(
                 payment_method_types=['card'],
@@ -174,6 +180,18 @@ class CreateCheckoutSessionView(APIView):
                 shipping_address_collection={
                     'allowed_countries': ['US', 'CA', 'GB', 'AU', 'NZ', 'DE', 'FR', 'IT', 'ES', 'NL'],
                 },
+                shipping_options=[
+                    {
+                        'shipping_rate_data': {
+                            'type': 'fixed_amount',
+                            'fixed_amount': {
+                                'amount': int(delivery_charge_dollars * 100),
+                                'currency': 'usd',
+                            },
+                            'display_name': 'Delivery Charge',
+                        },
+                    },
+                ],
                 phone_number_collection={
                     'enabled': True
                 },
@@ -258,6 +276,7 @@ def finalize_order(session):
             order.state = state
             order.postal_code = postal_code
             order.country = country
+            order.delivery_charge = "5.00"
             if user_id:
                 try:
                     order.user = User.objects.get(id=int(user_id))
@@ -301,7 +320,8 @@ def finalize_order(session):
                     city=city,
                     state=state,
                     postal_code=postal_code,
-                    country=country
+                    country=country,
+                    delivery_charge="5.00"
                 )
                 
                 if order.fundraiser and order.fundraiser.user:
@@ -371,6 +391,8 @@ class GuestCheckoutSessionView(APIView):
         if not line_items:
             return Response({"error": "No valid products found"}, status=status.HTTP_400_BAD_REQUEST)
 
+        delivery_charge_dollars = 5.00  # $5.00 delivery charge
+
         try:
             checkout_session = stripe.checkout.Session.create(
                 payment_method_types=['card'],
@@ -381,6 +403,18 @@ class GuestCheckoutSessionView(APIView):
                 shipping_address_collection={
                     'allowed_countries': ['US', 'CA', 'GB', 'AU', 'NZ', 'DE', 'FR', 'IT', 'ES', 'NL'],
                 },
+                shipping_options=[
+                    {
+                        'shipping_rate_data': {
+                            'type': 'fixed_amount',
+                            'fixed_amount': {
+                                'amount': int(delivery_charge_dollars * 100),
+                                'currency': 'usd',
+                            },
+                            'display_name': 'Delivery Charge',
+                        },
+                    },
+                ],
                 phone_number_collection={
                     'enabled': True
                 },
@@ -398,7 +432,8 @@ class GuestCheckoutSessionView(APIView):
                     quantity=quantity,
                     fundraiser=fundraiser,
                     stripe_session_id=checkout_session.id,
-                    is_paid=False
+                    is_paid=False,
+                    delivery_charge="5.00"
                 )
                 
             return Response({'sessionId': checkout_session.id, 'url': checkout_session.url})

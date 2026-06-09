@@ -25,6 +25,7 @@ class CartSerializer(serializers.ModelSerializer):
 class OrderSerializer(serializers.ModelSerializer):
     product = ProductSerializer(read_only=True)
     subtotal = serializers.SerializerMethodField()
+    grand_total = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
@@ -35,3 +36,10 @@ class OrderSerializer(serializers.ModelSerializer):
             return float(obj.product.price) * obj.quantity
         except (ValueError, TypeError):
             return 0.0
+
+    def get_grand_total(self, obj):
+        subtotal = self.get_subtotal(obj)
+        try:
+            return subtotal + float(obj.delivery_charge)
+        except (ValueError, TypeError, AttributeError):
+            return subtotal

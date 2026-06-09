@@ -53,6 +53,7 @@ class Order(models.Model):
     # Payment status
     stripe_session_id = models.CharField(max_length=255, blank=True, null=True)
     is_paid = models.BooleanField(default=False)
+    delivery_charge = models.CharField(max_length=50, default="0.00")
     
     created_at = models.DateTimeField(auto_now_add=True)
 
