@@ -174,8 +174,8 @@ class CreateCheckoutSessionView(APIView):
                 payment_method_types=['card'],
                 line_items=line_items,
                 mode='payment',
-                success_url=request.build_absolute_uri('/success/?session_id={CHECKOUT_SESSION_ID}'),
-                cancel_url=request.build_absolute_uri('/cancel/'),
+                success_url='http://localhost:5173/success?session_id={CHECKOUT_SESSION_ID}',
+                cancel_url='http://localhost:5173/cancel',
                 client_reference_id=str(request.user.id),
                 shipping_address_collection={
                     'allowed_countries': ['US', 'CA', 'GB', 'AU', 'NZ', 'DE', 'FR', 'IT', 'ES', 'NL'],
@@ -398,8 +398,8 @@ class GuestCheckoutSessionView(APIView):
                 payment_method_types=['card'],
                 line_items=line_items,
                 mode='payment',
-                success_url=request.build_absolute_uri('/success/?session_id={CHECKOUT_SESSION_ID}'),
-                cancel_url=request.build_absolute_uri('/cancel/'),
+                success_url='http://localhost:5173/success?session_id={CHECKOUT_SESSION_ID}',
+                cancel_url='http://localhost:5173/cancel',
                 shipping_address_collection={
                     'allowed_countries': ['US', 'CA', 'GB', 'AU', 'NZ', 'DE', 'FR', 'IT', 'ES', 'NL'],
                 },
@@ -440,3 +440,60 @@ class GuestCheckoutSessionView(APIView):
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+class ProductReviewListView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, slug):
+        try:
+            product = Product.objects.get(slug=slug)
+        except Product.DoesNotExist:
+            return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
+        
+        from .models import Review
+        from .serializers import ReviewSerializer
+        reviews = Review.objects.filter(product=product).order_by('-created_at')
+        serializer = ReviewSerializer(reviews, many=True, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+class ProductReviewPostView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, slug):
+        try:
+            product = Product.objects.get(slug=slug)
+        except Product.DoesNotExist:
+            return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        rating = request.data.get('rating')
+        comment = request.data.get('comment', '')
+
+        if rating is None:
+            return Response({"error": "Rating is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            rating = int(rating)
+            if rating < 1 or rating > 5:
+                return Response({"error": "Rating must be between 1 and 5"}, status=status.HTTP_400_BAD_REQUEST)
+        except ValueError:
+            return Response({"error": "Rating must be an integer"}, status=status.HTTP_400_BAD_REQUEST)
+
+        from .models import Review
+        from .serializers import ReviewSerializer
+        
+        review, created = Review.objects.update_or_create(
+            product=product,
+            user=request.user,
+            defaults={'rating': rating, 'comment': comment}
+        )
+
+        serializer = ReviewSerializer(review, context={'request': request})
+        return Response({"message": "Review submitted successfully", "review": serializer.data}, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+class LatestReview(APIView):
+    permission_classes = [permissions.AllowAny]
+    def get(self, request):
+        from .models import Review
+        from .serializers import ReviewSerializer
+        reviews = Review.objects.filter().order_by('-created_at')[:10]
+        serializer = ReviewSerializer(reviews, many=True, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)

@@ -1,5 +1,13 @@
 from rest_framework import serializers
-from . models import Product, Cart, Order
+from . models import Product, Cart, Order, Review
+from event.serializers import UserProfileMinSerializer
+
+class ReviewSerializer(serializers.ModelSerializer):
+    user = UserProfileMinSerializer(read_only=True)
+
+    class Meta:
+        model = Review
+        fields = '__all__'
 
 class ProductSerializer(serializers.ModelSerializer):
     class Meta:
