@@ -32,7 +32,7 @@ SECRET_KEY = 'django-insecure-qy=ma5goccvxur3b^w*7runy&d#13o!4fqwu+ns%3nkpq_mld!
 DEBUG = True
 
 ALLOWED_HOSTS = ['*']
-CSRF_TRUSTED_ORIGINS = ['http://10.10.13.61:8009', 'http://localhost:8009', 'http://127.0.0.1:8009']
+CSRF_TRUSTED_ORIGINS = ['http://10.10.13.61:8009', 'http://localhost:8009', 'http://127.0.0.1:8009', 'http://localhost:5173', 'http://127.0.0.1:5173', 'https://intensely-optimal-unicorn.ngrok-free.app']
 
 
 # Application definition
@@ -80,12 +80,15 @@ CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 
 
-CORS_ALLOWED_ORIGINS = [
-    "https://example.com",
-    "https://sub.example.com",
-    "http://localhost:8080",
-    "http://127.0.0.1:9000",
-]
+# CORS_ALLOWED_ORIGINS = [
+#     "https://example.com",
+#     "https://sub.example.com",
+#     "http://localhost:8080",
+#     "http://127.0.0.1:9000",
+#     "http://localhost:5173",
+#     "http://127.0.0.1:5173",
+#     "https://intensely-optimal-unicorn.ngrok-free.app",
+# ]
 
 ROOT_URLCONF = 'laronhall.urls'
 
