@@ -36,6 +36,7 @@ class EventSerializer(serializers.ModelSerializer):
     status = serializers.SerializerMethodField()
     total_achieved = serializers.SerializerMethodField()
     is_mine = serializers.SerializerMethodField()
+    type_slug = serializers.CharField(source='type.slug', read_only=True)
 
     class Meta:
         model = Event
