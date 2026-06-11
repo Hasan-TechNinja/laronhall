@@ -33,7 +33,15 @@ class ProductDetailView(APIView):
         except Product.DoesNotExist:
             return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
         serializer = ProductSerializer(product)
-        return Response(serializer.data)
+        
+        from .serializers import ReviewSerializer
+        reviews = product.reviews.all().order_by('-created_at')
+        review_serializer = ReviewSerializer(reviews, many=True, context={'request': request})
+        
+        data = serializer.data
+        data['reviews'] = review_serializer.data
+        
+        return Response(data)
 
 
 class AddToCart(APIView):
@@ -455,39 +463,6 @@ class ProductReviewListView(APIView):
         serializer = ReviewSerializer(reviews, many=True, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-class ProductReviewPostView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
-    def post(self, request, slug):
-        try:
-            product = Product.objects.get(slug=slug)
-        except Product.DoesNotExist:
-            return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
-
-        rating = request.data.get('rating')
-        comment = request.data.get('comment', '')
-
-        if rating is None:
-            return Response({"error": "Rating is required"}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            rating = int(rating)
-            if rating < 1 or rating > 5:
-                return Response({"error": "Rating must be between 1 and 5"}, status=status.HTTP_400_BAD_REQUEST)
-        except ValueError:
-            return Response({"error": "Rating must be an integer"}, status=status.HTTP_400_BAD_REQUEST)
-
-        from .models import Review
-        from .serializers import ReviewSerializer
-        
-        review, created = Review.objects.update_or_create(
-            product=product,
-            user=request.user,
-            defaults={'rating': rating, 'comment': comment}
-        )
-
-        serializer = ReviewSerializer(review, context={'request': request})
-        return Response({"message": "Review submitted successfully", "review": serializer.data}, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 
 class LatestReview(APIView):
     permission_classes = [permissions.AllowAny]

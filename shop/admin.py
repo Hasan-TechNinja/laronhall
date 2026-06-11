@@ -1,10 +1,10 @@
 from django.contrib import admin
-from . models import Product, Cart, Order
+from . models import Product, Cart, Order, Review
 
 # Register your models here.
 
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ('name', 'slug', 'price', 'stock', 'image')
+    list_display = ('id', 'name', 'slug', 'price', 'stock', 'image')
     list_filter = ('price', 'stock')
     search_fields = ('name', 'description')
     ordering = ('-created_at',)
@@ -37,3 +37,10 @@ class OrderAdmin(admin.ModelAdmin):
 admin.site.register(Product, ProductAdmin)
 admin.site.register(Cart, CartAdmin)
 admin.site.register(Order, OrderAdmin)
+
+class ReviewAdmin(admin.ModelAdmin):
+    list_display = ('name', 'product', 'rating', 'created_at')
+    list_filter = ('rating', 'product')
+    search_fields = ('name', 'comment')
+
+admin.site.register(Review, ReviewAdmin)

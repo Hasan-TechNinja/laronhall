@@ -15,6 +15,5 @@ urlpatterns = [
     path('payment/success/', views.PaymentSuccessView.as_view(), name='payment-success'),
     path('orders/', views.OrderView.as_view(), name='orders'),
     path('products/<slug:slug>/reviews/', views.ProductReviewListView.as_view(), name='product-reviews'),
-    path('products/<slug:slug>/reviews/post/', views.ProductReviewPostView.as_view(), name='product-reviews-post'),
     path('reviews/', views.LatestReview.as_view(), name='latest-reviews'),
 ]
