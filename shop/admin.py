@@ -39,8 +39,8 @@ admin.site.register(Cart, CartAdmin)
 admin.site.register(Order, OrderAdmin)
 
 class ReviewAdmin(admin.ModelAdmin):
-    list_display = ('name', 'product', 'rating', 'created_at')
-    list_filter = ('rating', 'product')
+    list_display = ('name', 'rating', 'created_at')
+    list_filter = ('rating',)
     search_fields = ('name', 'comment')
 
 admin.site.register(Review, ReviewAdmin)

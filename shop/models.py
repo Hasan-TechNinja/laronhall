@@ -56,19 +56,18 @@ class Order(models.Model):
     delivery_charge = models.CharField(max_length=50, default="0.00")
     
     created_at = models.DateTimeField(auto_now_add=True)
-
+                        
     def __str__(self):
         if self.user:
             return f"{self.user.email} - {self.product.name}"
         return f"Guest ({self.email}) - {self.product.name}"
 
 class Review(models.Model):
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='reviews')
     name = models.CharField(max_length=100)
-    image = models.ImageField(upload_to='review_images', blank=True, null=True)
+    image = models.ImageField(upload_to='review_images')
     rating = models.IntegerField(default=5)
     comment = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.name} - {self.product.name} - {self.rating} stars"
+        return f"{self.name} - {self.rating} stars"
