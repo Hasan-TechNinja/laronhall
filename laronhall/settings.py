@@ -31,8 +31,8 @@ SECRET_KEY = 'django-insecure-qy=ma5goccvxur3b^w*7runy&d#13o!4fqwu+ns%3nkpq_mld!
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['*']
-CSRF_TRUSTED_ORIGINS = ['http://10.10.13.61:8009', 'http://localhost:8009', 'http://127.0.0.1:8009', 'http://localhost:5173', 'http://127.0.0.1:5173', 'https://intensely-optimal-unicorn.ngrok-free.app']
+ALLOWED_HOSTS = ['2.25.66.140', '*']
+CSRF_TRUSTED_ORIGINS = ['http://10.10.13.61:8009', 'http://localhost:8009', 'http://127.0.0.1:8009', 'http://localhost:5173', 'http://127.0.0.1:5173', 'https://intensely-optimal-unicorn.ngrok-free.app', 'http://2.25.66.140']
 
 
 # Application definition
@@ -119,10 +119,21 @@ WSGI_APPLICATION = 'laronhall.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',
+#     }
+# }
+
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'laronhall',
+        'USER': 'laronhall_user',
+        'PASSWORD': 'larondbpass',
+        'HOST': 'localhost',
+        'PORT': '',
     }
 }
 
