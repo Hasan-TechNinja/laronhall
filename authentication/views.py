@@ -9,6 +9,7 @@ import random
 from . models import RegisterOTP, Profile, ForgotPasswordOTP, PrivacyPolicy, TermsAndCondition
 from . serializers import ProfileSerializer, PrivacyPolicySerializer, TermsAndConditionSerializer
 from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
+from .emails import send_register_otp_email, send_forgot_password_otp_email
 
 
 # Create your views here.
@@ -43,13 +44,7 @@ class RegisterView(APIView):
 
         otp = random.randint(100000, 999999)
         RegisterOTP.objects.create(user=user, otp=otp)
-        send_mail(
-            'Register verification for Treats Island',
-            f'Your OTP is {otp}',
-            settings.DEFAULT_FROM_EMAIL,
-            [email],
-            fail_silently=False,
-        )
+        send_register_otp_email(email, otp)
         return Response({'message': 'Email sent successfully.'}, status=status.HTTP_200_OK)
 
 
@@ -146,13 +141,7 @@ class ForgotPasswordView(APIView):
         otp = random.randint(100000, 999999)
         ForgotPasswordOTP.objects.filter(user=user).delete()
         ForgotPasswordOTP.objects.create(user=user, otp=otp)
-        send_mail(
-            'Forgot Password Verification for Treats Island',
-            f'Your OTP is {otp}',
-            settings.DEFAULT_FROM_EMAIL,
-            [email],
-            fail_silently=False,
-        )
+        send_forgot_password_otp_email(email, otp)
         return Response({'message': 'Email sent successfully.'}, status=status.HTTP_200_OK)
 
 
