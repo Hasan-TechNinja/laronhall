@@ -64,7 +64,7 @@ class Order(models.Model):
 
 class Review(models.Model):
     name = models.CharField(max_length=100)
-    image = models.ImageField(upload_to='review_images')
+    image = models.ImageField(upload_to='review_images', blank=True, null=True)
     rating = models.IntegerField(default=5)
     comment = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)

@@ -10,6 +10,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.contrib.auth.models import User
 from notification.utils import send_push_notification
+from .models import Review
+from .serializers import ReviewSerializer
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
@@ -34,12 +36,13 @@ class ProductDetailView(APIView):
             return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
         serializer = ProductSerializer(product)
         
-        from .serializers import ReviewSerializer
-        reviews = product.reviews.all().order_by('-created_at')
-        review_serializer = ReviewSerializer(reviews, many=True, context={'request': request})
+        # from .models import Review
+        # from .serializers import ReviewSerializer
+        # reviews = Review.objects.all().order_by('-created_at')
+        # review_serializer = ReviewSerializer(reviews, many=True, context={'request': request})
         
         data = serializer.data
-        data['reviews'] = review_serializer.data
+        # data['reviews'] = review_serializer.data
         
         return Response(data)
 
@@ -459,7 +462,7 @@ class ProductReviewListView(APIView):
         
         from .models import Review
         from .serializers import ReviewSerializer
-        reviews = Review.objects.filter(product=product).order_by('-created_at')
+        reviews = Review.objects.all().order_by('-created_at')
         serializer = ReviewSerializer(reviews, many=True, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
