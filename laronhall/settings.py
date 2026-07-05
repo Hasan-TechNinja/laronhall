@@ -189,7 +189,7 @@ EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = config("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD")
-DEFAULT_FROM_EMAIL = 'hasantechninja@gmail.com'
+DEFAULT_FROM_EMAIL = 'Treats Island <hasantechninja@gmail.com>'
 ADMIN_EMAIL = 'hasantechninja@gmail.com'
 
 # Stripe Configuration
