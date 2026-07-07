@@ -52,6 +52,10 @@ class EventCreateInitView(APIView):
         code = generate_unique_code()
         code = code.upper()
 
+        payout_manager = request.data.get('payout_manager')
+        if not payout_manager and request.user:
+            payout_manager = request.user.email or request.user.username
+
         event = Event.objects.create(
             name=team_name,
             type=org_type,
@@ -62,7 +66,8 @@ class EventCreateInitView(APIView):
             creator=request.user,
             estimated_participants=estimated_participants,
             min_estimated_earning=min_estimated_earning,
-            max_estimated_earning=max_estimated_earning
+            max_estimated_earning=max_estimated_earning,
+            payout_manager=payout_manager
         )
         event.participants.add(request.user)
         Fundraiser.objects.get_or_create(user=request.user, event=event)
@@ -113,6 +118,13 @@ class EventUpdateView(APIView):
             event.max_estimated_earning = max_estimated_earning
         if team_name is not None:
             event.name = team_name
+
+        payout_manager = request.data.get('payout_manager')
+        if payout_manager is not None:
+            event.payout_manager = payout_manager
+        elif not event.payout_manager:
+            if event.creator:
+                event.payout_manager = event.creator.email or event.creator.username
 
         event.save()
         serializer = EventSerializer(event)

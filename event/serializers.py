@@ -133,7 +133,7 @@ class EventDetailedSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Event
-        fields = ['id', 'name', 'organizer_name', 'start_date', 'end_date', 'category_name', 'starts_in', 'code', 'duration', 'is_active', 'min_estimated_earning', 'max_estimated_earning', 'estimated_participants', 'status', 'total_achieved', 'is_mine']
+        fields = ['id', 'name', 'organizer_name', 'start_date', 'end_date', 'category_name', 'starts_in', 'code', 'duration', 'is_active', 'min_estimated_earning', 'max_estimated_earning', 'estimated_participants', 'status', 'total_achieved', 'is_mine', 'payout_manager']
 
     def get_is_mine(self, obj):
         request = self.context.get('request')
