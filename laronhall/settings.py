@@ -32,9 +32,9 @@ SECRET_KEY = 'django-insecure-qy=ma5goccvxur3b^w*7runy&d#13o!4fqwu+ns%3nkpq_mld!
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['api.treatsislandvf.tech', 'treatsislandvf.tech', '10.10.29.124']
+ALLOWED_HOSTS = ['api.treatsislandgo.com', 'treatsislandgo.com', '10.10.29.124']
 # Trust the secure origin for CSRF protection
-CSRF_TRUSTED_ORIGINS = ['https://api.treatsislandvf.tech', 'https://treatsislandvf.tech', 'http://10.10.29.124:8009/']
+CSRF_TRUSTED_ORIGINS = ['https://api.treatsislandgo.com', 'https://treatsislandgo.com', 'http://10.10.29.124']
 
 # Tell Django to trust the HTTPS headers coming from Nginx
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
