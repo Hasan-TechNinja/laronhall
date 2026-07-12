@@ -30,12 +30,18 @@ class RegisterView(APIView):
             return Response({'error': 'Password and confirm password does not match'}, status=status.HTTP_400_BAD_REQUEST)
 
         if User.objects.filter(email=email).exists():
-            if User.objects.filter(email=email).first().is_active:
+            user = User.objects.filter(email=email).first()
+            if user.is_active:
                 return Response({'error': 'User is already registered.'}, status=status.HTTP_400_BAD_REQUEST)
 
-            RegisterOTP.objects.filter(user=email).delete()
-            
-            return Response({'error': 'User is already registered.'}, status=status.HTTP_400_BAD_REQUEST)
+            RegisterOTP.objects.filter(user=user).delete()
+            user.set_password(password)
+            user.save()
+
+            otp = random.randint(100000, 999999)
+            RegisterOTP.objects.create(user=user, otp=otp)
+            send_register_otp_email(email, otp)
+            return Response({'message': 'Email sent successfully.'}, status=status.HTTP_200_OK)
 
         user = User.objects.create_user(email=email, username=email)
         user.is_active = False
