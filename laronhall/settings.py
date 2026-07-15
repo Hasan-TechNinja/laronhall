@@ -32,7 +32,7 @@ SECRET_KEY = 'django-insecure-qy=ma5goccvxur3b^w*7runy&d#13o!4fqwu+ns%3nkpq_mld!
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['api.treatsislandgo.com', 'treatsislandgo.com', '10.10.29.124']
+ALLOWED_HOSTS = ['api.treatsislandgo.com', 'treatsislandgo.com', '10.10.29.124', '*']
 # Trust the secure origin for CSRF protection
 CSRF_TRUSTED_ORIGINS = ['https://api.treatsislandgo.com', 'https://treatsislandgo.com', 'http://10.10.29.124']
 
@@ -40,8 +40,8 @@ CSRF_TRUSTED_ORIGINS = ['https://api.treatsislandgo.com', 'https://treatsislandg
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # Optional but recommended for production HTTPS
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = False
 
 # Application definition
 
@@ -122,6 +122,9 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'laronhall.wsgi.application'
+
+AUTH_USER_MODEL = 'authentication.User'
+
 
 
 # Database

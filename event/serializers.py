@@ -2,7 +2,8 @@ from rest_framework import serializers
 from .models import OrganizationType, Event, Fundraiser
 from shop.models import Order
 from django.utils import timezone
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
+User = get_user_model()
 
 class UserProfileMinSerializer(serializers.ModelSerializer):
     full_name = serializers.SerializerMethodField()
@@ -155,7 +156,7 @@ class EventDetailedSerializer(serializers.ModelSerializer):
     def get_organizer_name(self, obj):
         if obj.creator:
             full_name = f"{obj.creator.first_name} {obj.creator.last_name}".strip()
-            return full_name if full_name else obj.creator.username
+            return full_name if full_name else obj.creator.phone
         return "Unknown"
 
     def get_category_name(self, obj):

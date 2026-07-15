@@ -8,7 +8,8 @@ import stripe
 from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
+User = get_user_model()
 from notification.utils import send_push_notification
 from .models import Review
 from .serializers import ReviewSerializer

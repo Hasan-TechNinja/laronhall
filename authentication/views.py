@@ -1,7 +1,8 @@
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.shortcuts import render
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
+User = get_user_model()
 from rest_framework import status, permissions
 from django.core.mail import send_mail
 from django.conf import settings
@@ -10,18 +11,18 @@ from . models import RegisterOTP, Profile, ForgotPasswordOTP, PrivacyPolicy, Ter
 from . serializers import ProfileSerializer, PrivacyPolicySerializer, TermsAndConditionSerializer
 from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 from .emails import send_register_otp_email, send_forgot_password_otp_email
-
+from . utils import send_otp_phone, verify_otp, normalize_phone_number
 
 # Create your views here.
 
 class RegisterView(APIView):
     def post(self, request):
-        email = request.data.get('email')
+        phone = request.data.get('phone')
         password = request.data.get('password')
         confirm_password = request.data.get('confirm_password')
 
-        if not email:
-            return Response({'error': 'Email is required'}, status=status.HTTP_400_BAD_REQUEST)
+        if not phone:
+            return Response({'error': 'phone is required'}, status=status.HTTP_400_BAD_REQUEST)
 
         if not password or not confirm_password:
             return Response({'error': 'Password and confirm password is required'}, status=status.HTTP_400_BAD_REQUEST)
@@ -29,57 +30,68 @@ class RegisterView(APIView):
         if password != confirm_password:
             return Response({'error': 'Password and confirm password does not match'}, status=status.HTTP_400_BAD_REQUEST)
 
-        if User.objects.filter(email=email).exists():
-            user = User.objects.filter(email=email).first()
+        phone = normalize_phone_number(phone)
+
+        if User.objects.filter(phone=phone).exists():
+            user = User.objects.filter(phone=phone).first()
             if user.is_active:
                 return Response({'error': 'User is already registered.'}, status=status.HTTP_400_BAD_REQUEST)
 
-            RegisterOTP.objects.filter(user=user).delete()
+            try:
+                send_otp_phone(phone)
+            except Exception as e:
+                return Response({'error': f'Failed to send OTP: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
+
             user.set_password(password)
             user.save()
+            return Response({'message': 'OTP sent successfully.'}, status=status.HTTP_200_OK)
 
-            otp = random.randint(100000, 999999)
-            RegisterOTP.objects.create(user=user, otp=otp)
-            send_register_otp_email(email, otp)
-            return Response({'message': 'Email sent successfully.'}, status=status.HTTP_200_OK)
-
-        user = User.objects.create_user(email=email, username=email)
+        user = User.objects.create_user(phone=phone)
         user.is_active = False
         user.set_password(password)
         user.save()
 
-        otp = random.randint(100000, 999999)
-        RegisterOTP.objects.create(user=user, otp=otp)
-        send_register_otp_email(email, otp)
-        return Response({'message': 'Email sent successfully.'}, status=status.HTTP_200_OK)
+        profile = getattr(user, 'profile', None)
+        if profile:
+            profile.phone = phone
+            profile.save()
+
+        try:
+            send_otp_phone(phone)
+        except Exception as e:
+            return Response({'error': f'Failed to send OTP: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({'message': 'OTP sent successfully.'}, status=status.HTTP_200_OK)
 
 
 class RegisterOTPVerificationView(APIView):
     def post(self, request):
-        email = request.data.get('email')
+        phone = request.data.get('phone')
         otp = request.data.get('otp')
 
-        if not email:
-            return Response({'error': 'Email is required'}, status=status.HTTP_400_BAD_REQUEST)
+        if not phone:
+            return Response({'error': 'Phone number is required'}, status=status.HTTP_400_BAD_REQUEST)
 
         if not otp:
             return Response({'error': 'OTP is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        if not User.objects.filter(email=email).exists():
+        phone = normalize_phone_number(phone)
+
+        if not User.objects.filter(phone=phone).exists():
             return Response({'error': 'User is not registered.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        user = User.objects.filter(email=email).first()
-        register_otp = RegisterOTP.objects.filter(user=user).first()
-        if not register_otp:
-            return Response({'error': 'OTP is not found.'}, status=status.HTTP_400_BAD_REQUEST)
+        user = User.objects.filter(phone=phone).first()
 
-        if register_otp.otp != otp:
+        try:
+            is_valid = verify_otp(phone, otp)
+        except Exception as e:
+            return Response({'error': f'Verification failed: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not is_valid:
             return Response({'error': 'Invalid OTP.'}, status=status.HTTP_400_BAD_REQUEST)
 
         user.is_active = True
         user.save()
-        register_otp.is_verified = True
-        register_otp.save()
         
         refresh = RefreshToken.for_user(user)
         access = refresh.access_token
@@ -91,19 +103,21 @@ class LoginView(APIView):
     permission_classes = [permissions.AllowAny]
     
     def post(self, request):
-        email = request.data.get('email')
+        phone = request.data.get('phone')
         password = request.data.get('password')
 
-        if not email:
-            return Response({'error': 'Email is required'}, status=status.HTTP_100_CONTINUE)
+        if not phone:
+            return Response({'error': 'Phone number is required'}, status=status.HTTP_400_BAD_REQUEST)
 
         if not password:
-            return Response({'error': 'Password is required'}, status=status.HTTP_100_CONTINUE)
+            return Response({'error': 'Password is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        if not User.objects.filter(email=email).exists():
+        phone = normalize_phone_number(phone)
+
+        if not User.objects.filter(phone=phone).exists():
             return Response({'error': 'User is not registered.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        user = User.objects.filter(email=email).first()
+        user = User.objects.filter(phone=phone).first()
         if not user.is_active:
             return Response({'error': 'User is not activated.'}, status=status.HTTP_400_BAD_REQUEST)
         if not user.check_password(password):
@@ -113,7 +127,6 @@ class LoginView(APIView):
         access = refresh.access_token
 
         return Response({'access': str(access), 'refresh': str(refresh)}, status=status.HTTP_200_OK)
-
 
 
 class ProfileView(APIView):
@@ -138,41 +151,48 @@ class ProfileView(APIView):
 
 class ForgotPasswordView(APIView):
     def post(self, request):
-        email = request.data.get('email')
-        if not email:
-            return Response({'error': 'Email is required'}, status=status.HTTP_400_BAD_REQUEST)
-        if not User.objects.filter(email=email).exists():
+        phone = request.data.get('phone')
+        if not phone:
+            return Response({'error': 'Phone number is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        phone = normalize_phone_number(phone)
+        if not User.objects.filter(phone=phone).exists():
             return Response({'error': 'User is not registered.'}, status=status.HTTP_400_BAD_REQUEST)
-        user = User.objects.filter(email=email).first()
-        otp = random.randint(100000, 999999)
-        ForgotPasswordOTP.objects.filter(user=user).delete()
-        ForgotPasswordOTP.objects.create(user=user, otp=otp)
-        send_forgot_password_otp_email(email, otp)
-        return Response({'message': 'Email sent successfully.'}, status=status.HTTP_200_OK)
+        
+        try:
+            send_otp_phone(phone)
+        except Exception as e:
+            return Response({'error': f'Failed to send OTP: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({'message': 'OTP sent successfully.'}, status=status.HTTP_200_OK)
 
 
 class ForgotPasswordOTPVerificationView(APIView):
     def post(self, request):
-        email = request.data.get('email')
+        phone = request.data.get('phone')
         otp = request.data.get('otp')
 
-        if not email:
-            return Response({'error': 'Email is required'}, status=status.HTTP_400_BAD_REQUEST)
+        if not phone:
+            return Response({'error': 'Phone number is required'}, status=status.HTTP_400_BAD_REQUEST)
         if not otp:
             return Response({'error': 'OTP is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        if not User.objects.filter(email=email).exists():
+        phone = normalize_phone_number(phone)
+        if not User.objects.filter(phone=phone).exists():
             return Response({'error': 'User is not registered.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        user = User.objects.filter(email=email).first()
-        forgot_password_otp = ForgotPasswordOTP.objects.filter(user=user).first()
-        
-        if not forgot_password_otp:
-            return Response({'error': 'OTP is not found.'}, status=status.HTTP_400_BAD_REQUEST)
+        user = User.objects.filter(phone=phone).first()
 
-        if forgot_password_otp.otp != str(otp):
+        try:
+            is_valid = verify_otp(phone, otp)
+        except Exception as e:
+            return Response({'error': f'Verification failed: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not is_valid:
             return Response({'error': 'Invalid OTP.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        forgot_password_otp, created = ForgotPasswordOTP.objects.get_or_create(user=user)
+        forgot_password_otp.otp = str(otp)
         forgot_password_otp.is_verified = True
         forgot_password_otp.save()
         return Response({'message': 'OTP verified successfully.'}, status=status.HTTP_200_OK)
@@ -180,21 +200,22 @@ class ForgotPasswordOTPVerificationView(APIView):
 
 class ResetPasswordView(APIView):
     def post(self, request):
-        email = request.data.get('email')
+        phone = request.data.get('phone')
         new_password = request.data.get('new_password')
         confirm_password = request.data.get('confirm_password')
 
-        if not email:
-            return Response({'error': 'Email is required'}, status=status.HTTP_400_BAD_REQUEST)
+        if not phone:
+            return Response({'error': 'Phone number is required'}, status=status.HTTP_400_BAD_REQUEST)
         if not new_password or not confirm_password:
             return Response({'error': 'New password and confirm password are required'}, status=status.HTTP_400_BAD_REQUEST)
         if new_password != confirm_password:
             return Response({'error': 'Passwords do not match'}, status=status.HTTP_400_BAD_REQUEST)
 
-        if not User.objects.filter(email=email).exists():
+        phone = normalize_phone_number(phone)
+        if not User.objects.filter(phone=phone).exists():
             return Response({'error': 'User is not registered.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        user = User.objects.filter(email=email).first()
+        user = User.objects.filter(phone=phone).first()
         forgot_password_otp = ForgotPasswordOTP.objects.filter(user=user).first()
 
         if not forgot_password_otp or not forgot_password_otp.is_verified:

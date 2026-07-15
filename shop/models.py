@@ -1,6 +1,6 @@
 from django.template.defaultfilters import default
 from django.db import models
-from django.contrib.auth.models import User
+from django.conf import settings
 from django.utils.text import slugify
 
 # Create your models here.
@@ -24,18 +24,18 @@ class Product(models.Model):
 
 
 class Cart(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='cart')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='cart')
     fundraiser = models.ForeignKey('event.Fundraiser', on_delete=models.SET_NULL, null=True, blank=True, related_name='carts')
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='cart')
     quantity = models.IntegerField(default=1)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.user.email} - {self.product.name}"
+        return f"{self.user.phone} - {self.product.name}"
 
 
 class Order(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='order', null=True, blank=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='order', null=True, blank=True)
     fundraiser = models.ForeignKey('event.Fundraiser', on_delete=models.SET_NULL, null=True, blank=True, related_name='orders')
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='order')
     quantity = models.IntegerField(default=1)
@@ -59,7 +59,7 @@ class Order(models.Model):
                         
     def __str__(self):
         if self.user:
-            return f"{self.user.email} - {self.product.name}"
+            return f"{self.user.phone} - {self.product.name}"
         return f"Guest ({self.email}) - {self.product.name}"
 
 class Review(models.Model):
