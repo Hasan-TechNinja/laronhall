@@ -175,8 +175,7 @@ class MyEventsHistoryView(APIView):
 
     def get(self, request):
         events = Event.objects.filter(
-            participants=request.user,
-            end_date__lt=timezone.now()
+            participants=request.user
         ).order_by('-end_date')
         serializer = EventSerializer(events, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
