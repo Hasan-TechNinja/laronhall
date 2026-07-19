@@ -130,23 +130,26 @@ AUTH_USER_MODEL = 'authentication.User'
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
-#     }
-# }
+DB_ENGINE = config('DB_ENGINE', default='django.db.backends.sqlite3')
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'laronhall',
-        'USER': 'laronhall_user',
-        'PASSWORD': 'larondbpass',
-        'HOST': 'localhost',
-        'PORT': '',
+if DB_ENGINE == 'django.db.backends.postgresql':
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': config('DB_NAME', default='laronhall'),
+            'USER': config('DB_USER', default='laronhall_user'),
+            'PASSWORD': config('DB_PASSWORD', default='larondbpass'),
+            'HOST': config('DB_HOST', default='localhost'),
+            'PORT': config('DB_PORT', default=''),
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / config('DB_NAME', default='db.sqlite3'),
+        }
+    }
 
 AUTH_USER_MODEL = "authentication.User"
 
