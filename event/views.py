@@ -71,6 +71,13 @@ class EventCreateInitView(APIView):
         )
         event.participants.add(request.user)
         Fundraiser.objects.get_or_create(user=request.user, event=event)
+
+        if event.creator and event.creator.email:
+            from authentication.emails import send_welcome_organizer_email
+            send_welcome_organizer_email(
+                email=event.creator.email,
+                organizer_name=event.creator.full_name or event.creator.phone
+            )
         
         serializer = EventSerializer(event)
         return Response({'message': 'Event initialized', 'event': serializer.data}, status=status.HTTP_201_CREATED)

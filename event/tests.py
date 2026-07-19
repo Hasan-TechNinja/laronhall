@@ -25,7 +25,7 @@ class EventEmailTests(TestCase):
         # Create OrganizationType
         self.org_type = OrganizationType.objects.create(name="School", slug="school")
 
-    @patch('event.views.send_welcome_organizer_email')
+    @patch('authentication.emails.send_welcome_organizer_email')
     def test_create_event_sends_welcome_email(self, mock_send_email):
         url = reverse('event-create')
         data = {
@@ -41,7 +41,7 @@ class EventEmailTests(TestCase):
         self.assertEqual(response.status_code, 201)
         
         # Verify welcome email was sent
-        mock_send_email.assert_called_once_with("organizer@example.com", "Jane Doe")
+        mock_send_email.assert_called_once_with(email="organizer@example.com", organizer_name="Jane Doe")
 
     @patch('event.management.commands.send_event_start_reminders.send_event_start_soon_email')
     def test_send_event_start_reminders_command(self, mock_send_email):
@@ -110,7 +110,7 @@ class EventEmailTests(TestCase):
         event.refresh_from_db()
         self.assertTrue(event.end_thank_you_sent)
 
-    @patch('event.views.send_new_popup_alert_email')
+    @patch('authentication.emails.send_new_popup_alert_email')
     def test_update_fundraiser_name_sends_alert_email(self, mock_send_email):
         # Create an event created by self.user
         event = Event.objects.create(

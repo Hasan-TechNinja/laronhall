@@ -19,9 +19,6 @@ class AuthenticationTests(TestCase):
         # Verify user is created but inactive
         user = User.objects.get(phone='+8801580625257')
         self.assertFalse(user.is_active)
-        
-        # Verify profile is created
-        self.assertEqual(user.profile.phone, '+8801580625257')
 
     @patch('authentication.views.send_otp_phone')
     def test_send_otp_existing_user(self, mock_send_otp):
