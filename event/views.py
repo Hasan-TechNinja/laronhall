@@ -286,6 +286,29 @@ class FundraiserUpdateNameView(APIView):
                 body=f"A new shop '{name}' has been created in your event '{fundraiser.event.name}'.",
                 data={"event_id": str(fundraiser.event.id), "fundraiser_id": str(fundraiser.id), "type": "shop_created"}
             )
+            
+            if fundraiser.event.creator.email:
+                org_name = ""
+                org_profile = getattr(fundraiser.event.creator, 'profile', None)
+                if org_profile and org_profile.full_name:
+                    org_name = org_profile.full_name
+                else:
+                    org_name = f"{fundraiser.event.creator.first_name} {fundraiser.event.creator.last_name}".strip() or fundraiser.event.creator.phone
+                
+                member_name = ""
+                member_profile = getattr(request.user, 'profile', None)
+                if member_profile and member_profile.full_name:
+                    member_name = member_profile.full_name
+                else:
+                    member_name = f"{request.user.first_name} {request.user.last_name}".strip() or request.user.phone
+                
+                from authentication.emails import send_new_popup_alert_email
+                send_new_popup_alert_email(
+                    email=fundraiser.event.creator.email,
+                    organizer_name=org_name,
+                    member_name=member_name,
+                    popup_store_name=name
+                )
 
         serializer = FundraiserSerializer(fundraiser)
         return Response({'message': 'Name updated', 'fundraiser': serializer.data}, status=status.HTTP_200_OK)
