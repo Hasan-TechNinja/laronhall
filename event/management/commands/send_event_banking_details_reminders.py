@@ -21,12 +21,7 @@ class Command(BaseCommand):
         count = 0
         for event in events:
             if event.creator and event.creator.email:
-                organizer_name = ""
-                profile = getattr(event.creator, 'profile', None)
-                if profile and profile.full_name:
-                    organizer_name = profile.full_name
-                else:
-                    organizer_name = f"{event.creator.first_name} {event.creator.last_name}".strip() or event.creator.phone
+                organizer_name = event.creator.full_name or event.creator.phone
                 
                 try:
                     send_event_banking_details_reminder_email(event.creator.email, organizer_name)

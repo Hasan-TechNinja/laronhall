@@ -3,7 +3,7 @@ from rest_framework.views import APIView
 from django.contrib.auth import get_user_model
 User = get_user_model()
 from rest_framework import status, permissions
-from . models import Profile, PrivacyPolicy, TermsAndCondition
+from . models import PrivacyPolicy, TermsAndCondition
 from . serializers import ProfileSerializer, PrivacyPolicySerializer, TermsAndConditionSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from . utils import send_otp_phone, verify_otp, normalize_phone_number
@@ -16,26 +16,24 @@ class SendOTPView(APIView):
     def post(self, request):
         phone = request.data.get('phone')
 
+        email = request.data.get('email')
+
         if not phone:
             return Response({'error': 'Phone number is required'}, status=status.HTTP_400_BAD_REQUEST)
 
         phone = normalize_phone_number(phone)
 
         # Check if the user exists
-        user_exists = User.objects.filter(phone=phone).exists()
-
-        if not user_exists:
+        try:
+            user = User.objects.get(phone=phone)
+            if email:
+                user.email = email
+                user.save()
+        except User.DoesNotExist:
             # Create user as inactive since it's passwordless registration
-            user = User.objects.create_user(phone=phone)
+            user = User.objects.create_user(phone=phone, email=email)
             user.is_active = False
             user.save()
-
-            # Profile is automatically created by the post_save signal.
-            # Set the phone number on the profile if needed
-            profile = getattr(user, 'profile', None)
-            if profile:
-                profile.phone = phone
-                profile.save()
 
         try:
             send_otp_phone(phone)
@@ -92,16 +90,12 @@ class ProfileView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     
     def get(self, request):
-        profile = Profile.objects.filter(user=request.user).first()
-
-        serializer = ProfileSerializer(profile)
+        serializer = ProfileSerializer(request.user, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
     def put(self, request):
-        profile = Profile.objects.filter(user=request.user).first()
-
-        serializer = ProfileSerializer(profile, data=request.data, partial=True)
+        serializer = ProfileSerializer(request.user, data=request.data, partial=True, context={'request': request})
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_200_OK)

@@ -15,12 +15,8 @@ class EventEmailTests(TestCase):
         self.client = APIClient()
         self.user = User.objects.create_user(phone="+8801580625257", email="organizer@example.com")
         self.user.is_active = True
+        self.user.full_name = "Jane Doe"
         self.user.save()
-        
-        # Create Profile with full name
-        profile = self.user.profile
-        profile.full_name = "Jane Doe"
-        profile.save()
         
         # Get JWT tokens
         refresh = RefreshToken.for_user(self.user)
@@ -127,10 +123,8 @@ class EventEmailTests(TestCase):
         # Create another user (member)
         member = User.objects.create_user(phone="+8801711111111", email="member@example.com")
         member.is_active = True
+        member.full_name = "John Smith"
         member.save()
-        profile = member.profile
-        profile.full_name = "John Smith"
-        profile.save()
         
         # Create fundraiser record for the member
         fundraiser = Fundraiser.objects.create(user=member, event=event)

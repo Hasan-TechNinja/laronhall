@@ -6,24 +6,18 @@ from django.contrib.auth import get_user_model
 User = get_user_model()
 
 class UserProfileMinSerializer(serializers.ModelSerializer):
-    full_name = serializers.SerializerMethodField()
     image = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = ['id', 'email', 'full_name', 'image']
 
-    def get_full_name(self, obj):
-        if hasattr(obj, 'profile'):
-            return obj.profile.full_name
-        return None
-
     def get_image(self, obj):
-        if hasattr(obj, 'profile') and obj.profile.image:
+        if obj.image:
             request = self.context.get('request')
             if request:
-                return request.build_absolute_uri(obj.profile.image.url)
-            return obj.profile.image.url
+                return request.build_absolute_uri(obj.image.url)
+            return obj.image.url
         return None
 
 class OrganizationTypeSerializer(serializers.ModelSerializer):
@@ -85,14 +79,12 @@ class EventSerializer(serializers.ModelSerializer):
         from shop.models import Order
         
         for user in participants:
-            full_name = None
+            full_name = user.full_name
             image_url = None
-            if hasattr(user, 'profile'):
-                full_name = user.profile.full_name
-                if user.profile.image:
-                    image_url = user.profile.image.url
-                    if request:
-                        image_url = request.build_absolute_uri(image_url)
+            if user.image:
+                image_url = user.image.url
+                if request:
+                    image_url = request.build_absolute_uri(image_url)
             
             shop_goal = 0.0
             shop_achieved = 0.0
@@ -155,8 +147,7 @@ class EventDetailedSerializer(serializers.ModelSerializer):
 
     def get_organizer_name(self, obj):
         if obj.creator:
-            full_name = f"{obj.creator.first_name} {obj.creator.last_name}".strip()
-            return full_name if full_name else obj.creator.phone
+            return obj.creator.full_name or obj.creator.phone
         return "Unknown"
 
     def get_category_name(self, obj):

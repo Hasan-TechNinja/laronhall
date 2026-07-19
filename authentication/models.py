@@ -28,9 +28,9 @@ class CustomUserManager(BaseUserManager):
 
 class User(AbstractBaseUser, PermissionsMixin):
     phone = models.CharField(max_length=15, unique=True)
-    first_name = models.CharField(max_length=150, blank=True)
-    last_name = models.CharField(max_length=150, blank=True)
+    full_name = models.CharField(max_length=255, blank=True, null=True)
     email = models.EmailField(blank=True, null=True)
+    image = models.ImageField(upload_to='profile', blank=True, null=True)
     is_staff = models.BooleanField(default=False)
     is_active = models.BooleanField(default=False)
     date_joined = models.DateTimeField(auto_now_add=True)
@@ -65,17 +65,6 @@ class ForgotPasswordOTP(models.Model):
     def __str__(self):
         return f'{self.user.phone} - {self.otp}'
 
-
-class Profile(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
-    full_name = models.CharField(max_length=255, blank=True, null=True)
-    phone = models.CharField(max_length=15, blank=True, null=True)
-    image = models.ImageField(upload_to='profile', blank=True, null=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return f'{self.user.phone} - {self.full_name or ""}'
 
 
 class PrivacyPolicy(models.Model):

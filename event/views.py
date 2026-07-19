@@ -288,19 +288,8 @@ class FundraiserUpdateNameView(APIView):
             )
             
             if fundraiser.event.creator.email:
-                org_name = ""
-                org_profile = getattr(fundraiser.event.creator, 'profile', None)
-                if org_profile and org_profile.full_name:
-                    org_name = org_profile.full_name
-                else:
-                    org_name = f"{fundraiser.event.creator.first_name} {fundraiser.event.creator.last_name}".strip() or fundraiser.event.creator.phone
-                
-                member_name = ""
-                member_profile = getattr(request.user, 'profile', None)
-                if member_profile and member_profile.full_name:
-                    member_name = member_profile.full_name
-                else:
-                    member_name = f"{request.user.first_name} {request.user.last_name}".strip() or request.user.phone
+                org_name = fundraiser.event.creator.full_name or fundraiser.event.creator.phone
+                member_name = request.user.full_name or request.user.phone
                 
                 from authentication.emails import send_new_popup_alert_email
                 send_new_popup_alert_email(
@@ -475,11 +464,11 @@ class FundraiserSupporterListView(APIView):
 
         orders = Order.objects.filter(fundraiser=fundraiser, is_paid=True).annotate(
             supporter_email=Coalesce('user__email', 'email'),
-            supporter_name=Coalesce('user__profile__full_name', 'name')
+            supporter_name=Coalesce('user__full_name', 'name')
         ).values(
             'supporter_email',
             'supporter_name',
-            'user__profile__image'
+            'user__image'
         ).annotate(
             total_orders=Count('id'),
             total_amount=Sum(
@@ -491,8 +480,8 @@ class FundraiserSupporterListView(APIView):
         supporters = []
         for order in orders:
             image_url = None
-            if order.get('user__profile__image'):
-                image_url = request.build_absolute_uri('/media/' + order.get('user__profile__image'))
+            if order.get('user__image'):
+                image_url = request.build_absolute_uri('/media/' + order.get('user__image'))
             
             supporters.append({
                 'name': order.get('supporter_name'),
@@ -532,11 +521,11 @@ class FundraiserPublicView(APIView):
         
         orders = Order.objects.filter(fundraiser=fundraiser, is_paid=True).annotate(
             supporter_email=Coalesce('user__email', 'email'),
-            supporter_name=Coalesce('user__profile__full_name', 'name')
+            supporter_name=Coalesce('user__full_name', 'name')
         ).values(
             'supporter_email',
             'supporter_name',
-            'user__profile__image'
+            'user__image'
         ).annotate(
             total_orders=Count('id'),
             total_amount=Sum(
@@ -548,8 +537,8 @@ class FundraiserPublicView(APIView):
         supporters = []
         for order in orders:
             image_url = None
-            if order.get('user__profile__image'):
-                image_url = request.build_absolute_uri('/media/' + order.get('user__profile__image'))
+            if order.get('user__image'):
+                image_url = request.build_absolute_uri('/media/' + order.get('user__image'))
             
             supporters.append({
                 'name': order.get('supporter_name'),

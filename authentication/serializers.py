@@ -1,14 +1,12 @@
 from rest_framework import serializers
-from . models import User
-from . models import Profile, PrivacyPolicy, TermsAndCondition
+from . models import User, PrivacyPolicy, TermsAndCondition
 
 class ProfileSerializer(serializers.ModelSerializer):
-    email = serializers.EmailField(source='user.email', read_only=True)
     is_event_running = serializers.SerializerMethodField()
 
     class Meta: 
-        model = Profile
-        fields = "__all__"
+        model = User
+        fields = ['id', 'phone', 'full_name', 'email', 'image', 'is_event_running']
 
     def get_is_event_running(self, obj):
         from event.models import Event
@@ -17,7 +15,7 @@ class ProfileSerializer(serializers.ModelSerializer):
         
         now = timezone.now()
         return Event.objects.filter(
-            participants=obj.user
+            participants=obj
         ).filter(
             Q(end_date__gte=now) | Q(end_date__isnull=True)
         ).exists()
