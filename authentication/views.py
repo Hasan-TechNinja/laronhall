@@ -79,9 +79,12 @@ class VerifyOTPView(APIView):
         refresh = RefreshToken.for_user(user)
         access = refresh.access_token
 
+        serializer = ProfileSerializer(user, context={'request': request})
+
         return Response({
             'access': str(access),
             'refresh': str(refresh),
+            'user': serializer.data,
             'message': 'Verification successful.'
         }, status=status.HTTP_200_OK)
 
