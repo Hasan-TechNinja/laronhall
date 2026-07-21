@@ -83,14 +83,17 @@ Treats Island Candy Virtual Fundraising
 </body>
 </html>
 """
-    send_mail(
-        subject=subject,
-        message=text_content,
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[email],
-        html_message=html_content,
-        fail_silently=True,
-    )
+    try:
+        send_mail(
+            subject=subject,
+            message=text_content,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[email],
+            html_message=html_content,
+            fail_silently=False,
+        )
+    except Exception as e:
+        print(f"[EMAIL ERROR] Failed to send welcome email to {email}: {e}")
 
 
 def send_event_start_soon_email(email, organizer_name):
@@ -174,14 +177,17 @@ Treats Island Candy Virtual Fundraising
 </body>
 </html>
 """
-    send_mail(
-        subject=subject,
-        message=text_content,
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[email],
-        html_message=html_content,
-        fail_silently=True,
-    )
+    try:
+        send_mail(
+            subject=subject,
+            message=text_content,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[email],
+            html_message=html_content,
+            fail_silently=False,
+        )
+    except Exception as e:
+        print(f"[EMAIL ERROR] Failed to send event start soon email to {email}: {e}")
 
 
 def send_event_twenty_four_hour_reminder_email(email, organizer_name):
@@ -289,14 +295,17 @@ Treats Island Candy Virtual Fundraising
 </body>
 </html>
 """
-    send_mail(
-        subject=subject,
-        message=text_content,
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[email],
-        html_message=html_content,
-        fail_silently=True,
-    )
+    try:
+        send_mail(
+            subject=subject,
+            message=text_content,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[email],
+            html_message=html_content,
+            fail_silently=False,
+        )
+    except Exception as e:
+        print(f"[EMAIL ERROR] Failed to send 24h reminder email to {email}: {e}")
 
 
 def send_event_end_thank_you_email(email, organizer_name, organization_name):
@@ -380,14 +389,17 @@ Treats Island Candy Virtual Fundraising
 </body>
 </html>
 """
-    send_mail(
-        subject=subject,
-        message=text_content,
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[email],
-        html_message=html_content,
-        fail_silently=True,
-    )
+    try:
+        send_mail(
+            subject=subject,
+            message=text_content,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[email],
+            html_message=html_content,
+            fail_silently=False,
+        )
+    except Exception as e:
+        print(f"[EMAIL ERROR] Failed to send end thank you email to {email}: {e}")
 
 
 def send_new_popup_alert_email(email, organizer_name, member_name, popup_store_name):
@@ -466,14 +478,17 @@ Treats Island Candy Virtual Fundraising
 </body>
 </html>
 """
-    send_mail(
-        subject=subject,
-        message=text_content,
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[email],
-        html_message=html_content,
-        fail_silently=True,
-    )
+    try:
+        send_mail(
+            subject=subject,
+            message=text_content,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[email],
+            html_message=html_content,
+            fail_silently=False,
+        )
+    except Exception as e:
+        print(f"[EMAIL ERROR] Failed to send new popup alert email to {email}: {e}")
 
 
 def send_event_banking_details_reminder_email(email, organizer_name):
@@ -557,12 +572,15 @@ Treats Island Candy Virtual Fundraising
 </body>
 </html>
 """
-    send_mail(
-        subject=subject,
-        message=text_content,
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[email],
-        html_message=html_content,
-        fail_silently=True,
-    )
+    try:
+        send_mail(
+            subject=subject,
+            message=text_content,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[email],
+            html_message=html_content,
+            fail_silently=False,
+        )
+    except Exception as e:
+        print(f"[EMAIL ERROR] Failed to send banking details reminder email to {email}: {e}")
 
