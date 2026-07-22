@@ -186,8 +186,8 @@ class CreateCheckoutSessionView(APIView):
                 payment_method_types=['card'],
                 line_items=line_items,
                 mode='payment',
-                success_url='http://localhost:5173/success?session_id={CHECKOUT_SESSION_ID}',
-                cancel_url='http://localhost:5173/cancel',
+                success_url='https://treatsislandgo.com/success?session_id={CHECKOUT_SESSION_ID}',
+                cancel_url='https://treatsislandgo.com/cancel',
                 client_reference_id=str(request.user.id),
                 shipping_address_collection={
                     'allowed_countries': ['US', 'CA', 'GB', 'AU', 'NZ', 'DE', 'FR', 'IT', 'ES', 'NL'],
@@ -410,8 +410,8 @@ class GuestCheckoutSessionView(APIView):
                 payment_method_types=['card'],
                 line_items=line_items,
                 mode='payment',
-                success_url='http://localhost:5173/success?session_id={CHECKOUT_SESSION_ID}',
-                cancel_url='http://localhost:5173/cancel',
+                success_url='https://treatsislandgo.com/success?session_id={CHECKOUT_SESSION_ID}',
+                cancel_url='https://treatsislandgo.com/cancel',
                 shipping_address_collection={
                     'allowed_countries': ['US', 'CA', 'GB', 'AU', 'NZ', 'DE', 'FR', 'IT', 'ES', 'NL'],
                 },
