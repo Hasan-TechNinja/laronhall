@@ -211,6 +211,10 @@ STRIPE_SECRET_KEY = config('STRIPE_SECRET_KEY', default='')
 STRIPE_PUBLISHABLE_KEY = config('STRIPE_PUBLISHABLE_KEY', default='')
 STRIPE_WEBHOOK_SECRET = config('STRIPE_WEBHOOK_SECRET', default='')
 
+# Smarty US address verification
+SMARTY_AUTH_ID = config('SMARTY_AUTH_ID', default='930f6a62-2b48-9b37-b4f7-70417f0483ec')
+SMARTY_AUTH_TOKEN = config('SMARTY_AUTH_TOKEN', default='rH3I7mbgO7PkccwMcsXA')
+
 
 
 SIMPLE_JWT = {

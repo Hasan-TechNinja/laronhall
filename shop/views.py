@@ -13,8 +13,55 @@ User = get_user_model()
 from notification.utils import send_push_notification
 from .models import Review
 from .serializers import ReviewSerializer
+from .utils import AddressValidationError, validate_us_address
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
+
+
+def create_stripe_customer(address, name=None, email=None, phone=None):
+    customer_address = {
+        "line1": address["street"],
+        "city": address["city"],
+        "state": address["state"],
+        "postal_code": address["zipcode"],
+        "country": "US",
+    }
+    if address.get("street2"):
+        customer_address["line2"] = address["street2"]
+
+    customer_data = {
+        "address": customer_address,
+        "metadata": {
+            "address_verified": "true",
+            "address_match_code": address.get("match_code", ""),
+        },
+    }
+    if name:
+        customer_data["name"] = name
+    if email:
+        customer_data["email"] = email
+    if phone:
+        customer_data["phone"] = phone
+
+    return stripe.Customer.create(**customer_data)
+
+
+def address_session_metadata(address, name=None, email=None, phone=None):
+    metadata = {
+        "shipping_line1": address["street"],
+        "shipping_line2": address.get("street2", ""),
+        "shipping_city": address["city"],
+        "shipping_state": address["state"],
+        "shipping_postal_code": address["zipcode"],
+        "shipping_country": "US",
+    }
+    if name:
+        metadata["shipping_name"] = name
+    if email:
+        metadata["shipping_email"] = email
+    if phone:
+        metadata["shipping_phone"] = phone
+    return metadata
 
 # Create your views here.
 
@@ -151,6 +198,18 @@ class CartDeleteView(APIView):
         return Response({"message": "Item removed from cart"}, status=status.HTTP_200_OK)
 
 
+class AddressValidationView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        try:
+            address = validate_us_address(request.data.get("address", request.data))
+        except AddressValidationError as exc:
+            return Response({"valid": False, "error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({"valid": True, "address": address}, status=status.HTTP_200_OK)
+
+
 class CreateCheckoutSessionView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -159,6 +218,15 @@ class CreateCheckoutSessionView(APIView):
         
         if not cart_items.exists():
             return Response({"error": "Cart is empty"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            address = validate_us_address(request.data.get("address"))
+        except AddressValidationError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        name = request.data.get("name") or request.user.full_name
+        email = request.data.get("email") or request.user.email
+        phone = request.data.get("phone") or request.user.phone
             
         line_items = []
         for item in cart_items:
@@ -181,7 +249,9 @@ class CreateCheckoutSessionView(APIView):
             
         delivery_charge_dollars = 5.00  # $5.00 delivery charge
             
+        customer = None
         try:
+            customer = create_stripe_customer(address, name, email, phone)
             checkout_session = stripe.checkout.Session.create(
                 payment_method_types=['card'],
                 line_items=line_items,
@@ -189,8 +259,10 @@ class CreateCheckoutSessionView(APIView):
                 success_url='https://treatsislandgo.com/success?session_id={CHECKOUT_SESSION_ID}',
                 cancel_url='https://treatsislandgo.com/cancel',
                 client_reference_id=str(request.user.id),
-                shipping_address_collection={
-                    'allowed_countries': ['US', 'CA', 'GB', 'AU', 'NZ', 'DE', 'FR', 'IT', 'ES', 'NL'],
+                customer=customer.id,
+                metadata=address_session_metadata(address, name, email, phone),
+                payment_intent_data={
+                    "metadata": address_session_metadata(address, name, email, phone),
                 },
                 shipping_options=[
                     {
@@ -210,6 +282,11 @@ class CreateCheckoutSessionView(APIView):
             )
             return Response({'sessionId': checkout_session.id, 'url': checkout_session.url})
         except Exception as e:
+            if customer:
+                try:
+                    stripe.Customer.delete(customer.id)
+                except Exception:
+                    pass
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -256,24 +333,29 @@ def finalize_order(session):
     
     customer_details = getattr(session, 'customer_details', None)
     shipping_details = getattr(session, 'shipping_details', None)
+    metadata = getattr(session, 'metadata', {}) or {}
     
-    email = customer_details.email if customer_details else None
-    phone = customer_details.phone if customer_details else None
+    email = (customer_details.email if customer_details else None) or metadata.get("shipping_email")
+    phone = (customer_details.phone if customer_details else None) or metadata.get("shipping_phone")
     
     address_obj = None
-    name = None
+    name = metadata.get("shipping_name")
     if shipping_details:
         address_obj = shipping_details.address
-        name = shipping_details.name
+        name = shipping_details.name or name
     elif customer_details:
         address_obj = customer_details.address
-        name = customer_details.name
+        name = customer_details.name or name
         
-    address = f"{address_obj.line1} {address_obj.line2 or ''}".strip() if address_obj else None
-    city = address_obj.city if address_obj else None
-    state = address_obj.state if address_obj else None
-    postal_code = address_obj.postal_code if address_obj else None
-    country = address_obj.country if address_obj else None
+    address = (
+        f"{address_obj.line1} {address_obj.line2 or ''}".strip()
+        if address_obj
+        else metadata.get("shipping_line1")
+    )
+    city = address_obj.city if address_obj else metadata.get("shipping_city")
+    state = address_obj.state if address_obj else metadata.get("shipping_state")
+    postal_code = address_obj.postal_code if address_obj else metadata.get("shipping_postal_code")
+    country = address_obj.country if address_obj else metadata.get("shipping_country")
 
     # Handle Guest/Pre-created Orders
     unpaid_orders = Order.objects.filter(stripe_session_id=session.id, is_paid=False)
@@ -318,7 +400,7 @@ def finalize_order(session):
             user = User.objects.get(id=int(user_id))
             cart_items = Cart.objects.filter(user=user)
             for item in cart_items:
-                Order.objects.create(
+                order = Order.objects.create(
                     user=user,
                     fundraiser=item.fundraiser,
                     product=item.product,
@@ -374,6 +456,15 @@ class GuestCheckoutSessionView(APIView):
         cart = request.data.get('cart', [])
         if not cart or not isinstance(cart, list):
             return Response({"error": "Cart is empty or invalid format. Expecting a list of items under 'cart' key."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            address = validate_us_address(request.data.get("address"))
+        except AddressValidationError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        name = request.data.get("name")
+        email = request.data.get("email")
+        phone = request.data.get("phone")
             
         line_items = []
         order_items_to_create = []
@@ -405,15 +496,19 @@ class GuestCheckoutSessionView(APIView):
 
         delivery_charge_dollars = 5.00  # $5.00 delivery charge
 
+        customer = None
         try:
+            customer = create_stripe_customer(address, name, email, phone)
             checkout_session = stripe.checkout.Session.create(
                 payment_method_types=['card'],
                 line_items=line_items,
                 mode='payment',
                 success_url='https://treatsislandgo.com/success?session_id={CHECKOUT_SESSION_ID}',
                 cancel_url='https://treatsislandgo.com/cancel',
-                shipping_address_collection={
-                    'allowed_countries': ['US', 'CA', 'GB', 'AU', 'NZ', 'DE', 'FR', 'IT', 'ES', 'NL'],
+                customer=customer.id,
+                metadata=address_session_metadata(address, name, email, phone),
+                payment_intent_data={
+                    "metadata": address_session_metadata(address, name, email, phone),
                 },
                 shipping_options=[
                     {
@@ -450,6 +545,11 @@ class GuestCheckoutSessionView(APIView):
                 
             return Response({'sessionId': checkout_session.id, 'url': checkout_session.url})
         except Exception as e:
+            if customer:
+                try:
+                    stripe.Customer.delete(customer.id)
+                except Exception:
+                    pass
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class ProductReviewListView(APIView):
