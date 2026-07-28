@@ -377,6 +377,11 @@ def finalize_order(session):
                 except (User.DoesNotExist, ValueError, TypeError):
                     pass
             order.save()
+            try:
+                from .shipstation import send_order_to_shipstation
+                send_order_to_shipstation(order)
+            except Exception:
+                pass
             
             if order.fundraiser and order.fundraiser.user:
                 send_push_notification(
@@ -417,6 +422,11 @@ def finalize_order(session):
                     country=country,
                     delivery_charge="5.00"
                 )
+                try:
+                    from .shipstation import send_order_to_shipstation
+                    send_order_to_shipstation(order)
+                except Exception:
+                    pass
                 
                 if order.fundraiser and order.fundraiser.user:
                     send_push_notification(
@@ -576,3 +586,69 @@ class LatestReview(APIView):
         reviews = Review.objects.filter().order_by('-created_at')[:10]
         serializer = ReviewSerializer(reviews, many=True, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class ShipStationWebhookView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        import logging
+        import requests
+        import base64
+        from django.conf import settings
+        from .models import Order
+
+        logger = logging.getLogger(__name__)
+        payload = request.data
+        logger.info(f"Incoming ShipStation Webhook: {payload}")
+
+        resource_url = payload.get('resource_url')
+        resource_type = payload.get('resource_type')
+
+        if resource_type == "shipnotify" and resource_url:
+            api_key = getattr(settings, 'SHIPSTATION_API_KEY', None)
+            api_secret = getattr(settings, 'SHIPSTATION_API_SECRET', None)
+            
+            if not api_key or not api_secret:
+                logger.error("ShipStation keys are not configured. Cannot retrieve shipment details.")
+                return Response({'error': 'Credentials not configured'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            auth_str = f"{api_key}:{api_secret}"
+            auth_bytes = auth_str.encode('ascii')
+            base64_bytes = base64.b64encode(auth_bytes)
+            base64_str = base64_bytes.decode('ascii')
+            
+            headers = {
+                'Authorization': f'Basic {base64_str}',
+                'Accept': 'application/json'
+            }
+
+            try:
+                resp = requests.get(resource_url, headers=headers, timeout=10)
+                if resp.status_code == 200:
+                    shipment_data = resp.json()
+                    shipments = shipment_data.get('shipments', [])
+                    for shipment in shipments:
+                        order_number_str = shipment.get('orderNumber', '')
+                        tracking_number = shipment.get('trackingNumber')
+                        carrier = shipment.get('carrierCode')
+                        
+                        if order_number_str.startswith("Order-"):
+                            try:
+                                order_id = int(order_number_str.replace("Order-", ""))
+                                order = Order.objects.filter(id=order_id).first()
+                                if order:
+                                    order.tracking_number = tracking_number
+                                    order.carrier = carrier
+                                    order.shipment_status = "shipped"
+                                    order.save()
+                                    logger.info(f"Updated Order {order_id} tracking to {tracking_number} ({carrier}).")
+                            except ValueError:
+                                logger.error(f"Invalid order number format: {order_number_str}")
+                else:
+                    logger.error(f"ShipStation API request failed with status: {resp.status_code}")
+            except Exception as e:
+                logger.error(f"Error handling ShipStation shipment fetch: {str(e)}")
+
+        return Response({'status': 'success'}, status=status.HTTP_200_OK)

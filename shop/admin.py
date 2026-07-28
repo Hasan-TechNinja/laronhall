@@ -27,9 +27,9 @@ class CartAdmin(admin.ModelAdmin):
 
 
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ('id','user', 'product', 'quantity', 'email','phone', 'name','address','city','state', 'country')
-    list_filter = ('user', 'product', 'quantity')
-    search_fields = ('user', 'product', 'quantity')
+    list_display = ('id','user', 'product', 'quantity', 'email','phone', 'name','address','city','state', 'country', 'tracking_number', 'carrier', 'shipment_status')
+    list_filter = ('user', 'product', 'quantity', 'shipment_status', 'carrier')
+    search_fields = ('user__phone', 'user__email', 'product__name', 'email', 'name', 'tracking_number')
     ordering = ('-created_at',)
 
     def has_delete_permission(self, request, obj=None):

@@ -57,7 +57,13 @@ class Order(models.Model):
     is_paid = models.BooleanField(default=False)
     delivery_charge = models.CharField(max_length=50, default="0.00")
     
+    # Shipping Tracking Details
+    tracking_number = models.CharField(max_length=255, blank=True, null=True)
+    carrier = models.CharField(max_length=100, blank=True, null=True)
+    shipment_status = models.CharField(max_length=100, default='unshipped')
+    
     created_at = models.DateTimeField(auto_now_add=True)
+
                         
     def __str__(self):
         if self.user:

@@ -17,4 +17,5 @@ urlpatterns = [
     path('orders/', views.OrderView.as_view(), name='orders'),
     path('products/<slug:slug>/reviews/', views.ProductReviewListView.as_view(), name='product-reviews'),
     path('reviews/', views.LatestReview.as_view(), name='latest-reviews'),
+    path('shipstation/webhook/', views.ShipStationWebhookView.as_view(), name='shipstation-webhook'),
 ]

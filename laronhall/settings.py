@@ -274,3 +274,7 @@ firebase_cred_path = BASE_DIR / 'treats-island-c407a-firebase-adminsdk-fbsvc-eee
 if firebase_cred_path.exists() and not firebase_admin._apps:
     cred = credentials.Certificate(firebase_cred_path)
     firebase_admin.initialize_app(cred)
+
+# ShipStation Configuration
+SHIPSTATION_API_KEY = config('SHIPSTATION_API_KEY', default='demo_api_key_12345')
+SHIPSTATION_API_SECRET = config('SHIPSTATION_API_SECRET', default='demo_api_secret_67890')
