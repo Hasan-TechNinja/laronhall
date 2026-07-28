@@ -12,7 +12,9 @@ class Product(models.Model):
     price = models.CharField(max_length=50)
     stock = models.CharField(max_length=255)
     image = models.ImageField(upload_to='product_images')
+    is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
 
     def save(self, *args, **kwargs):
         if not self.slug:

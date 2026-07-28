@@ -4,14 +4,16 @@ from . models import Product, Cart, Order, Review
 # Register your models here.
 
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ('id', 'name', 'slug', 'price', 'stock', 'image')
-    list_filter = ('price', 'stock')
+    list_display = ('id', 'name', 'slug', 'price', 'stock', 'is_active', 'image')
+    list_filter = ('is_active', 'price', 'stock')
+    list_editable = ('is_active',)
     search_fields = ('name', 'description')
     ordering = ('-created_at',)
     prepopulated_fields = {'slug': ('name',)}
     
     def has_delete_permission(self, request, obj=None):
         return False
+
 
 
 class CartAdmin(admin.ModelAdmin):

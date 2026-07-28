@@ -69,7 +69,7 @@ class ProductsView(APIView):
     permission_classes = [permissions.AllowAny]
 
     def get(self, request):
-        products = Product.objects.all()
+        products = Product.objects.filter(is_active=True)
         serializer = ProductSerializer(products, many=True)
         return Response(serializer.data)
         
@@ -79,7 +79,7 @@ class ProductDetailView(APIView):
 
     def get(self, request, slug):
         try:
-            product = Product.objects.get(slug=slug)
+            product = Product.objects.get(slug=slug, is_active=True)
         except Product.DoesNotExist:
             return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
         serializer = ProductSerializer(product)
@@ -112,7 +112,7 @@ class AddToCart(APIView):
             return Response({"error": "Quantity must be an integer"}, status=status.HTTP_400_BAD_REQUEST)
             
         try:
-            product = Product.objects.get(slug=slug)
+            product = Product.objects.get(slug=slug, is_active=True)
         except Product.DoesNotExist:
             return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
 
@@ -474,7 +474,7 @@ class GuestCheckoutSessionView(APIView):
             quantity = item.get('quantity', 1)
             fundraiser_id = item.get('fundraiser_id')
             try:
-                product = Product.objects.get(slug=slug)
+                product = Product.objects.get(slug=slug, is_active=True)
                 unit_amount = int(float(product.price) * 100)
                 
                 line_items.append({
