@@ -200,7 +200,7 @@ class FundraiserSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
     def get_share_link(self, obj):
-        return f"https://treatsislandvf.tech/shop/{obj.id}"
+        return f"https://treatsislandgo.com/shop/{obj.id}"
 
     def get_achieved(self, obj):
         orders = Order.objects.filter(fundraiser=obj, is_paid=True)
