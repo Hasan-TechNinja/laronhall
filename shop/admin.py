@@ -33,6 +33,13 @@ class OrderAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         return False
 
+    def lookup_allowed(self, lookup, value, request=None):
+        if lookup in ('fundraiser__event__id__exact', 'fundraiser__event__id'):
+            return True
+        return super().lookup_allowed(lookup, value, request)
+
+
+
 
 admin.site.register(Product, ProductAdmin)
 admin.site.register(Cart, CartAdmin)
