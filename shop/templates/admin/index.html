@@ -1,0 +1,159 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block extrastyle %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static "admin/css/dashboard.css" %}">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+    /* Premium Modern Dashboard Banner UI */
+    .dashboard-banner-container {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        margin-bottom: 28px;
+    }
+    .dashboard-banner {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        border-radius: 12px;
+        padding: 24px 32px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        color: white;
+        box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.2), 0 8px 10px -6px rgba(16, 185, 129, 0.1);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        border: none;
+    }
+    .dashboard-banner:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 12px 30px -5px rgba(16, 185, 129, 0.3), 0 10px 12px -6px rgba(16, 185, 129, 0.15);
+    }
+    .dashboard-banner-content {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+    }
+    .dashboard-banner-icon {
+        font-size: 36px;
+        background: rgba(255, 255, 255, 0.18);
+        padding: 12px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        backdrop-filter: blur(4px);
+        box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.2);
+    }
+    .dashboard-banner-text h2 {
+        margin: 0 0 6px 0 !important;
+        font-size: 22px !important;
+        font-weight: 700 !important;
+        letter-spacing: -0.02em !important;
+        color: white !important;
+        border-bottom: none !important;
+        padding: 0 !important;
+        background: none !important;
+    }
+    .dashboard-banner-text p {
+        margin: 0 !important;
+        font-size: 14px !important;
+        color: rgba(255, 255, 255, 0.9) !important;
+        font-weight: 400 !important;
+        line-height: 1.5 !important;
+    }
+    .dashboard-banner-btn {
+        background-color: white !important;
+        color: #059669 !important;
+        font-weight: 600 !important;
+        padding: 12px 24px !important;
+        border-radius: 8px !important;
+        text-decoration: none !important;
+        font-size: 14px !important;
+        transition: all 0.2s ease !important;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+        white-space: nowrap !important;
+    }
+    .dashboard-banner-btn:hover {
+        background-color: #f8fafc !important;
+        transform: translateY(-1px) !important;
+        box-shadow: 0 6px 10px -1px rgba(0, 0, 0, 0.15) !important;
+        color: #047857 !important;
+    }
+    @media (max-width: 768px) {
+        .dashboard-banner {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 20px;
+            padding: 20px 24px;
+        }
+        .dashboard-banner-btn {
+            width: 100% !important;
+            justify-content: center !important;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block coltype %}colMS{% endblock %}
+
+{% block bodyclass %}{{ block.super }} dashboard{% endblock %}
+
+{% block nav-breadcrumbs %}{% endblock %}
+
+{% block nav-sidebar %}{% endblock %}
+
+{% block content %}
+<div class="dashboard-banner-container">
+    <div class="dashboard-banner">
+        <div class="dashboard-banner-content">
+            <div class="dashboard-banner-icon">📊</div>
+            <div class="dashboard-banner-text">
+                <h2>Business Dashboard</h2>
+                <p>Monitor store sales, fundraiser campaign performance, address validation, and fulfillment metrics.</p>
+            </div>
+        </div>
+        <a href="/admin/dashboard/" class="dashboard-banner-btn">
+            View Analytics →
+        </a>
+    </div>
+</div>
+
+<div id="content-main" class="app-list">
+  {% include "admin/app_list.html" with app_list=app_list show_changelinks=True %}
+</div>
+{% endblock %}
+
+{% block sidebar %}
+<div id="content-related">
+    <div class="module" id="recent-actions-module">
+        <h2>{% translate 'Recent actions' %}</h2>
+        <h3>{% translate 'My actions' %}</h3>
+            {% load log %}
+            {% get_admin_log 10 as admin_log for_user user %}
+            {% if not admin_log %}
+            <p>{% translate 'None available' %}</p>
+            {% else %}
+            <ul class="actionlist">
+            {% for entry in admin_log %}
+            <li class="{% if entry.is_addition %}addlink{% endif %}{% if entry.is_change %}changelink{% endif %}{% if entry.is_deletion %}deletelink{% endif %}">
+                <span class="visually-hidden">{% if entry.is_addition %}{% translate 'Added:' %}{% elif entry.is_change %}{% translate 'Changed:' %}{% elif entry.is_deletion %}{% translate 'Deleted:' %}{% endif %}</span>
+                {% if entry.is_deletion or not entry.get_admin_url %}
+                    {{ entry.object_repr }}
+                {% else %}
+                    <a href="{{ entry.get_admin_url }}">{{ entry.object_repr }}</a>
+                {% endif %}
+                <br>
+                {% if entry.content_type %}
+                    <span class="mini quiet">{% filter capfirst %}{{ entry.content_type.name }}{% endfilter %}</span>
+                {% else %}
+                    <span class="mini quiet">{% translate 'Unknown content' %}</span>
+                {% endif %}
+            </li>
+            {% endfor %}
+            </ul>
+            {% endif %}
+    </div>
+</div>
+{% endblock %}

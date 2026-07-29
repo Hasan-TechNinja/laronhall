@@ -652,3 +652,239 @@ class ShipStationWebhookView(APIView):
                 logger.error(f"Error handling ShipStation shipment fetch: {str(e)}")
 
         return Response({'status': 'success'}, status=status.HTTP_200_OK)
+
+
+# Helper to fetch dashboard metrics
+def calculate_dashboard_metrics(filters_dict):
+    import datetime
+    from django.utils import timezone
+    from django.db.models import Q
+    from event.models import Event, OrganizationType
+    from shop.models import Order
+
+    # 1. Gather choices
+    organizations = OrganizationType.objects.all()
+    campaigns = Event.objects.all()
+    states_list = sorted(list(set(Order.objects.filter(is_paid=True).exclude(state__isnull=True).exclude(state='').values_list('state', flat=True))))
+
+    # Extract filter parameters
+    selected_org = filters_dict.get('organization', '')
+    selected_campaign = filters_dict.get('campaign', '')
+    selected_state = filters_dict.get('state', '')
+    selected_status = filters_dict.get('status', '')
+    start_date_str = filters_dict.get('start_date', '')
+    end_date_str = filters_dict.get('end_date', '')
+
+    # 2. Filter orders base query
+    orders_qs = Order.objects.select_related('product', 'fundraiser', 'fundraiser__event', 'fundraiser__event__type', 'fundraiser__user').all()
+
+    if start_date_str:
+        try:
+            start_date = timezone.make_aware(datetime.datetime.strptime(start_date_str, '%Y-%m-%d'))
+            orders_qs = orders_qs.filter(created_at__gte=start_date)
+        except Exception:
+            pass
+    if end_date_str:
+        try:
+            end_date = timezone.make_aware(datetime.datetime.strptime(end_date_str, '%Y-%m-%d') + datetime.timedelta(days=1))
+            orders_qs = orders_qs.filter(created_at__lt=end_date)
+        except Exception:
+            pass
+
+    if selected_org:
+        orders_qs = orders_qs.filter(fundraiser__event__type_id=selected_org)
+
+    if selected_campaign:
+        orders_qs = orders_qs.filter(fundraiser__event_id=selected_campaign)
+
+    if selected_state:
+        orders_qs = orders_qs.filter(state__iexact=selected_state)
+
+    if selected_status:
+        if selected_status == 'paid':
+            orders_qs = orders_qs.filter(is_paid=True)
+        elif selected_status == 'unpaid':
+            orders_qs = orders_qs.filter(is_paid=False)
+        elif selected_status == 'shipped':
+            orders_qs = orders_qs.filter(is_paid=True, shipment_status='shipped')
+        elif selected_status == 'unshipped':
+            orders_qs = orders_qs.filter(is_paid=True, shipment_status='unshipped')
+
+    paid_orders = orders_qs.filter(is_paid=True)
+    unpaid_orders = orders_qs.filter(is_paid=False)
+
+    def sum_sales(qs):
+        total = 0.0
+        for o in qs:
+            try:
+                total += float(o.product.price) * o.quantity
+            except Exception:
+                pass
+        return total
+
+    # Time-based sales (among paid orders matching other filters)
+    now = timezone.now()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    this_week_start = today_start - datetime.timedelta(days=7)
+    this_month_start = today_start.replace(day=1)
+    this_year_start = today_start.replace(month=1, day=1)
+
+    sales_today = sum_sales(paid_orders.filter(created_at__gte=today_start))
+    sales_week = sum_sales(paid_orders.filter(created_at__gte=this_week_start))
+    sales_month = sum_sales(paid_orders.filter(created_at__gte=this_month_start))
+    sales_ytd = sum_sales(paid_orders.filter(created_at__gte=this_year_start))
+    total_sales = sum_sales(paid_orders)
+
+    total_donations = 0.0
+
+    event_sales = sum_sales(paid_orders.filter(fundraiser__isnull=False))
+    non_event_sales = sum_sales(paid_orders.filter(fundraiser__isnull=True))
+
+    owed_to_organizations = event_sales * 0.5
+    treats_island_revenue = (event_sales * 0.5) + non_event_sales
+
+    # Campaigns (Events) counts
+    events_filtered = Event.objects.all()
+    if selected_org:
+        events_filtered = events_filtered.filter(type_id=selected_org)
+    if selected_campaign:
+        events_filtered = events_filtered.filter(id=selected_campaign)
+
+    active_campaigns_count = events_filtered.filter(start_date__lte=now, end_date__gte=now, is_active=True).count()
+    upcoming_campaigns_count = events_filtered.filter(start_date__gt=now).count()
+    ending_soon_campaigns_count = events_filtered.filter(end_date__gt=now, end_date__lte=now + datetime.timedelta(days=3)).count()
+
+    # Orders counts
+    total_orders_count = orders_qs.count()
+
+    five_days_ago = now - datetime.timedelta(days=5)
+    orders_needing_attention = paid_orders.filter(
+        Q(shipment_status='unshipped', created_at__lt=five_days_ago) |
+        Q(address__isnull=True) | Q(address='') |
+        Q(city__isnull=True) | Q(city='')
+    )
+    orders_needing_attention_count = orders_needing_attention.count()
+
+    failed_payments_count = unpaid_orders.exclude(stripe_session_id__isnull=True).exclude(stripe_session_id='').count()
+
+    address_problems_count = paid_orders.filter(
+        Q(address__isnull=True) | Q(address='') |
+        Q(city__isnull=True) | Q(city='') |
+        Q(state__isnull=True) | Q(state='') |
+        Q(postal_code__isnull=True) | Q(postal_code='')
+    ).count()
+
+    unshipped_orders_count = paid_orders.filter(shipment_status='unshipped').count()
+    refund_requests_count = 0
+    new_orgs_count = OrganizationType.objects.all().count()
+
+    org_performance = {}
+    for o in paid_orders:
+        if o.fundraiser and o.fundraiser.event and o.fundraiser.event.type:
+            org_name = o.fundraiser.event.type.name
+            try:
+                val = float(o.product.price) * o.quantity
+            except Exception:
+                val = 0.0
+            org_performance[org_name] = org_performance.get(org_name, 0.0) + val
+
+    top_orgs = sorted(org_performance.items(), key=lambda x: x[1], reverse=True)[:5]
+
+    part_performance = {}
+    for o in paid_orders:
+        if o.fundraiser and o.fundraiser.user:
+            part_name = o.fundraiser.user.full_name or o.fundraiser.user.phone
+            try:
+                val = float(o.product.price) * o.quantity
+            except Exception:
+                val = 0.0
+            part_performance[part_name] = part_performance.get(part_name, 0.0) + val
+
+    top_participants = sorted(part_performance.items(), key=lambda x: x[1], reverse=True)[:5]
+
+    return {
+        'organizations': organizations,
+        'campaigns': campaigns,
+        'states': states_list,
+
+        'selected_org': selected_org,
+        'selected_campaign': selected_campaign,
+        'selected_state': selected_state,
+        'selected_status': selected_status,
+        'start_date': start_date_str,
+        'end_date': end_date_str,
+
+        'sales_today': sales_today,
+        'sales_week': sales_week,
+        'sales_month': sales_month,
+        'sales_ytd': sales_ytd,
+        'total_sales': total_sales,
+        'total_donations': total_donations,
+        'owed_to_organizations': owed_to_organizations,
+        'treats_island_revenue': treats_island_revenue,
+
+        'active_campaigns_count': active_campaigns_count,
+        'upcoming_campaigns_count': upcoming_campaigns_count,
+        'ending_soon_campaigns_count': ending_soon_campaigns_count,
+
+        'total_orders_count': total_orders_count,
+        'orders_needing_attention_count': orders_needing_attention_count,
+        'failed_payments_count': failed_payments_count,
+        'address_problems_count': address_problems_count,
+        'unshipped_orders_count': unshipped_orders_count,
+        'refund_requests_count': refund_requests_count,
+        'new_orgs_count': new_orgs_count,
+
+        'top_orgs': top_orgs,
+        'top_participants': top_participants,
+    }
+
+
+from django.contrib.admin.views.decorators import staff_member_required
+from django.shortcuts import render
+
+@staff_member_required
+def admin_dashboard_html_view(request):
+    metrics = calculate_dashboard_metrics(request.GET)
+    return render(request, 'admin/dashboard.html', metrics)
+
+
+class AdminDashboardAPIView(APIView):
+    permission_classes = [permissions.IsAdminUser]
+
+    def get(self, request):
+        metrics = calculate_dashboard_metrics(request.GET)
+        serialized_metrics = {
+            'selected_org': metrics['selected_org'],
+            'selected_campaign': metrics['selected_campaign'],
+            'selected_state': metrics['selected_state'],
+            'selected_status': metrics['selected_status'],
+            'start_date': metrics['start_date'],
+            'end_date': metrics['end_date'],
+
+            'sales_today': metrics['sales_today'],
+            'sales_week': metrics['sales_week'],
+            'sales_month': metrics['sales_month'],
+            'sales_ytd': metrics['sales_ytd'],
+            'total_sales': metrics['total_sales'],
+            'total_donations': metrics['total_donations'],
+            'owed_to_organizations': metrics['owed_to_organizations'],
+            'treats_island_revenue': metrics['treats_island_revenue'],
+
+            'active_campaigns_count': metrics['active_campaigns_count'],
+            'upcoming_campaigns_count': metrics['upcoming_campaigns_count'],
+            'ending_soon_campaigns_count': metrics['ending_soon_campaigns_count'],
+
+            'total_orders_count': metrics['total_orders_count'],
+            'orders_needing_attention_count': metrics['orders_needing_attention_count'],
+            'failed_payments_count': metrics['failed_payments_count'],
+            'address_problems_count': metrics['address_problems_count'],
+            'unshipped_orders_count': metrics['unshipped_orders_count'],
+            'refund_requests_count': metrics['refund_requests_count'],
+            'new_orgs_count': metrics['new_orgs_count'],
+
+            'top_orgs': metrics['top_orgs'],
+            'top_participants': metrics['top_participants'],
+        }
+        return Response(serialized_metrics, status=status.HTTP_200_OK)
+

@@ -48,6 +48,7 @@ CSRF_COOKIE_SECURE = False
 INSTALLED_APPS = [
     'admin_interface',
     'colorfield',
+    'shop',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -56,7 +57,6 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'authentication',
     'event',
-    'shop',
     'notification',
 
     'corsheaders',

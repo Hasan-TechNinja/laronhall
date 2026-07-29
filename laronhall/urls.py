@@ -16,6 +16,7 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from shop.views import admin_dashboard_html_view
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
@@ -26,7 +27,9 @@ from django.conf.urls.static import static
 
 
 urlpatterns = [
+    path('admin/dashboard/', admin_dashboard_html_view, name='admin-dashboard'),
     path('admin/', admin.site.urls),
+
     path('auth/', include('authentication.urls')),
     path('event/', include('event.urls')),
     path('shop/', include('shop.urls')),
