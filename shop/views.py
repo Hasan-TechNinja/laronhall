@@ -280,6 +280,19 @@ class CreateCheckoutSessionView(APIView):
                     'enabled': True
                 },
             )
+            
+            # Pre-create unpaid orders to prevent cart modification race conditions
+            for item in cart_items:
+                Order.objects.create(
+                    user=request.user,
+                    product=item.product,
+                    quantity=item.quantity,
+                    fundraiser=item.fundraiser,
+                    stripe_session_id=checkout_session.id,
+                    is_paid=False,
+                    delivery_charge="5.00"
+                )
+
             return Response({'sessionId': checkout_session.id, 'url': checkout_session.url})
         except Exception as e:
             if customer:
