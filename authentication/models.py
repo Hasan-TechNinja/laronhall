@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
+from ckeditor.fields import RichTextField
 
 class CustomUserManager(BaseUserManager):
     def create_user(self, phone, password=None, **extra_fields):
@@ -69,7 +70,7 @@ class ForgotPasswordOTP(models.Model):
 
 class PrivacyPolicy(models.Model):
     title = models.CharField(max_length=255)
-    description = models.TextField()
+    description = RichTextField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -79,7 +80,7 @@ class PrivacyPolicy(models.Model):
 
 class TermsAndCondition(models.Model):
     title = models.CharField(max_length=255)
-    description = models.TextField()
+    description = RichTextField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
