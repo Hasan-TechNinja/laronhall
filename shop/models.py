@@ -62,6 +62,8 @@ class Order(models.Model):
     carrier = models.CharField(max_length=100, blank=True, null=True)
     shipment_status = models.CharField(max_length=100, default='unshipped')
     
+    invoice_id = models.CharField(max_length=255, blank=True, null=True)
+    
     created_at = models.DateTimeField(auto_now_add=True)
 
                         

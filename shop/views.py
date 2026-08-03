@@ -294,6 +294,7 @@ class CreateCheckoutSessionView(APIView):
                         quantity=item.quantity,
                         fundraiser=item.fundraiser,
                         stripe_session_id=checkout_session.id,
+                        invoice_id=idempotency_key,
                         is_paid=False,
                         delivery_charge="5.00"
                     )
@@ -571,6 +572,7 @@ class GuestCheckoutSessionView(APIView):
                         quantity=quantity,
                         fundraiser=fundraiser,
                         stripe_session_id=checkout_session.id,
+                        invoice_id=idempotency_key,
                         is_paid=False,
                         delivery_charge="5.00"
                     )
