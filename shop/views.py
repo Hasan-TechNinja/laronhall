@@ -353,7 +353,8 @@ def finalize_order(session):
     
     customer_details = getattr(session, 'customer_details', None)
     shipping_details = getattr(session, 'shipping_details', None)
-    metadata = getattr(session, 'metadata', {}) or {}
+    metadata_obj = getattr(session, 'metadata', {}) or {}
+    metadata = metadata_obj._data if hasattr(metadata_obj, '_data') else metadata_obj
     
     email = (customer_details.email if customer_details else None) or metadata.get("shipping_email")
     phone = (customer_details.phone if customer_details else None) or metadata.get("shipping_phone")
