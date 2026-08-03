@@ -216,6 +216,27 @@ class CreateCheckoutSessionView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
+        payload_cart = request.data.get('cart')
+        if payload_cart and isinstance(payload_cart, list):
+            # Sync payload cart to database cart for this user
+            Cart.objects.filter(user=request.user).delete()
+            for item in payload_cart:
+                slug = item.get('slug')
+                quantity = item.get('quantity', 1)
+                fundraiser_id = item.get('fundraiser_id')
+                try:
+                    product = Product.objects.get(slug=slug, is_active=True)
+                    fundraiser = None
+                    if fundraiser_id:
+                        from event.models import Fundraiser
+                        try:
+                            fundraiser = Fundraiser.objects.get(id=fundraiser_id)
+                        except Fundraiser.DoesNotExist:
+                            pass
+                    Cart.objects.create(user=request.user, product=product, quantity=quantity, fundraiser=fundraiser)
+                except Product.DoesNotExist:
+                    pass
+        
         cart_items = Cart.objects.filter(user=request.user)
         
         if not cart_items.exists():
