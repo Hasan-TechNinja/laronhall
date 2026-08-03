@@ -13,6 +13,8 @@ User = get_user_model()
 from notification.utils import send_push_notification
 from .models import Review
 from .serializers import ReviewSerializer
+from django.db import transaction
+import uuid
 from .utils import AddressValidationError, validate_us_address
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
@@ -250,9 +252,11 @@ class CreateCheckoutSessionView(APIView):
         delivery_charge_dollars = 5.00  # $5.00 delivery charge
             
         customer = None
+        idempotency_key = request.data.get('idempotency_key', str(uuid.uuid4()))
         try:
             customer = create_stripe_customer(address, name, email, phone)
             checkout_session = stripe.checkout.Session.create(
+                idempotency_key=idempotency_key,
                 payment_method_types=['card'],
                 line_items=line_items,
                 mode='payment',
@@ -281,17 +285,18 @@ class CreateCheckoutSessionView(APIView):
                 },
             )
             
-            # Pre-create unpaid orders to prevent cart modification race conditions
-            for item in cart_items:
-                Order.objects.create(
-                    user=request.user,
-                    product=item.product,
-                    quantity=item.quantity,
-                    fundraiser=item.fundraiser,
-                    stripe_session_id=checkout_session.id,
-                    is_paid=False,
-                    delivery_charge="5.00"
-                )
+            # Pre-create unpaid orders atomically
+            with transaction.atomic():
+                for item in cart_items:
+                    Order.objects.create(
+                        user=request.user,
+                        product=item.product,
+                        quantity=item.quantity,
+                        fundraiser=item.fundraiser,
+                        stripe_session_id=checkout_session.id,
+                        is_paid=False,
+                        delivery_charge="5.00"
+                    )
 
             return Response({'sessionId': checkout_session.id, 'url': checkout_session.url})
         except Exception as e:
@@ -338,6 +343,7 @@ class OrderView(APIView):
         serializer = OrderSerializer(orders, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+@transaction.atomic
 def finalize_order(session):
     if session.payment_status != 'paid':
         return
@@ -520,9 +526,11 @@ class GuestCheckoutSessionView(APIView):
         delivery_charge_dollars = 5.00  # $5.00 delivery charge
 
         customer = None
+        idempotency_key = request.data.get('idempotency_key', str(uuid.uuid4()))
         try:
             customer = create_stripe_customer(address, name, email, phone)
             checkout_session = stripe.checkout.Session.create(
+                idempotency_key=idempotency_key,
                 payment_method_types=['card'],
                 line_items=line_items,
                 mode='payment',
@@ -550,21 +558,22 @@ class GuestCheckoutSessionView(APIView):
                 },
             )
             
-            # Create unpaid orders beforehand to link them with session_id
-            for product, quantity, fundraiser_id in order_items_to_create:
-                fundraiser = None
-                if fundraiser_id:
-                    from event.models import Fundraiser
-                    fundraiser = Fundraiser.objects.filter(id=fundraiser_id).first()
-                    
-                Order.objects.create(
-                    product=product,
-                    quantity=quantity,
-                    fundraiser=fundraiser,
-                    stripe_session_id=checkout_session.id,
-                    is_paid=False,
-                    delivery_charge="5.00"
-                )
+            # Create unpaid orders beforehand to link them with session_id atomically
+            with transaction.atomic():
+                for product, quantity, fundraiser_id in order_items_to_create:
+                    fundraiser = None
+                    if fundraiser_id:
+                        from event.models import Fundraiser
+                        fundraiser = Fundraiser.objects.filter(id=fundraiser_id).first()
+                        
+                    Order.objects.create(
+                        product=product,
+                        quantity=quantity,
+                        fundraiser=fundraiser,
+                        stripe_session_id=checkout_session.id,
+                        is_paid=False,
+                        delivery_charge="5.00"
+                    )
                 
             return Response({'sessionId': checkout_session.id, 'url': checkout_session.url})
         except Exception as e:
