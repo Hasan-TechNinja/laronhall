@@ -12,7 +12,7 @@ def send_welcome_organizer_email(email, organizer_name):
 
 We are thrilled to have you on board for your upcoming fundraising event! As a pioneer in the virtual candy fundraising landscape, we are committed to making this experience as sweet and enjoyable as possible.
 
-Our unique selection of delicious specialty candies and nuts are sure to delight everyone involved. With our easy-to-navigate platform, we aim to make the process of fundraising as straightforward and effective as possible.
+Our unique selection of delicious chamoy candies are  sure to delight everyone involved. With our easy-to-navigate platform, we aim to make the process of fundraising as straightforward and effective as possible.
 
 In the coming days, we will share tips and strategies to help you maximize your fundraising potential. Meanwhile, feel free to explore our website and familiarize yourself with our offerings and how the fundraising process works.
 
@@ -21,7 +21,7 @@ Thank you for choosing Treats Island Candy. We look forward to a successful and 
 Best Regards,
 
 GOALS Team
-Treats Island Candy Virtual Fundraising
+Treats Island GO Virtual Fundraising
 """
 
     html_content = f"""<!DOCTYPE html>
@@ -50,7 +50,7 @@ Treats Island Candy Virtual Fundraising
                                 We are thrilled to have you on board for your upcoming fundraising event! As a pioneer in the virtual candy fundraising landscape, we are committed to making this experience as sweet and enjoyable as possible.
                             </p>
                             <p style="margin: 0 0 16px 0; font-size: 16px; line-height: 24px; color: #475569;">
-                                Our unique selection of delicious specialty candies and nuts are sure to delight everyone involved. With our easy-to-navigate platform, we aim to make the process of fundraising as straightforward and effective as possible.
+                                Our unique selection of delicious chamoy candies are  sure to delight everyone involved. With our easy-to-navigate platform, we aim to make the process of fundraising as straightforward and effective as possible.
                             </p>
                             <p style="margin: 0 0 24px 0; font-size: 16px; line-height: 24px; color: #475569;">
                                 In the coming days, we will share tips and strategies to help you maximize your fundraising potential. Meanwhile, feel free to explore our website and familiarize yourself with our offerings and how the fundraising process works.
@@ -64,7 +64,7 @@ Treats Island Candy Virtual Fundraising
                             <p style="margin: 0; font-size: 15px; line-height: 22px; color: #475569; font-weight: 600;">
                                 Best Regards,<br>
                                 <span style="color: #059669; font-weight: 700;">GOALS Team</span><br>
-                                <span style="font-size: 13px; color: #64748b; font-weight: 400;">Treats Island Candy Virtual Fundraising</span>
+                                <span style="font-size: 13px; color: #64748b; font-weight: 400;">Treats Island GO Virtual Fundraising</span>
                             </p>
                         </td>
                     </tr>
@@ -115,7 +115,7 @@ Best of luck with your fundraising event!
 Best Regards,
 
 GOALS Team
-Treats Island Candy Virtual Fundraising
+Treats Island GO Virtual Fundraising
 """
 
     html_content = f"""<!DOCTYPE html>
@@ -158,7 +158,7 @@ Treats Island Candy Virtual Fundraising
                             <p style="margin: 0; font-size: 15px; line-height: 22px; color: #475569; font-weight: 600;">
                                 Best Regards,<br>
                                 <span style="color: #1d4ed8; font-weight: 700;">GOALS Team</span><br>
-                                <span style="font-size: 13px; color: #64748b; font-weight: 400;">Treats Island Candy Virtual Fundraising</span>
+                                <span style="font-size: 13px; color: #64748b; font-weight: 400;">Treats Island GO Virtual Fundraising</span>
                             </p>
                         </td>
                     </tr>
@@ -213,7 +213,7 @@ Best of luck with your fundraising event!
 Best Regards,
 
 GOALS Team
-Treats Island Candy Virtual Fundraising
+Treats Island GO Virtual Fundraising
 """
 
     html_content = f"""<!DOCTYPE html>
@@ -276,7 +276,7 @@ Treats Island Candy Virtual Fundraising
                             <p style="margin: 0; font-size: 15px; line-height: 22px; color: #475569; font-weight: 600;">
                                 Best Regards,<br>
                                 <span style="color: #7e22ce; font-weight: 700;">GOALS Team</span><br>
-                                <span style="font-size: 13px; color: #64748b; font-weight: 400;">Treats Island Candy Virtual Fundraising</span>
+                                <span style="font-size: 13px; color: #64748b; font-weight: 400;">Treats Island GO Virtual Fundraising</span>
                             </p>
                         </td>
                     </tr>
@@ -327,7 +327,7 @@ Thank you once again for choosing Treats Island Candy Virtual Fundraiser. We loo
 Best Regards,
 
 GOALS Team
-Treats Island Candy Virtual Fundraising
+Treats Island GO Virtual Fundraising
 """
 
     html_content = f"""<!DOCTYPE html>
@@ -370,7 +370,7 @@ Treats Island Candy Virtual Fundraising
                             <p style="margin: 0; font-size: 15px; line-height: 22px; color: #475569; font-weight: 600;">
                                 Best Regards,<br>
                                 <span style="color: #be185d; font-weight: 700;">GOALS Team</span><br>
-                                <span style="font-size: 13px; color: #64748b; font-weight: 400;">Treats Island Candy Virtual Fundraising</span>
+                                <span style="font-size: 13px; color: #64748b; font-weight: 400;">Treats Island GO Virtual Fundraising</span>
                             </p>
                         </td>
                     </tr>
@@ -419,7 +419,7 @@ Remember, our team is here to assist you. We look forward to updating you on mor
 Best Regards,
 
 GOALS Team
-Treats Island Candy Virtual Fundraising
+Treats Island GO Virtual Fundraising
 """
 
     html_content = f"""<!DOCTYPE html>
@@ -459,7 +459,7 @@ Treats Island Candy Virtual Fundraising
                             <p style="margin: 0; font-size: 15px; line-height: 22px; color: #475569; font-weight: 600;">
                                 Best Regards,<br>
                                 <span style="color: #d97706; font-weight: 700;">GOALS Team</span><br>
-                                <span style="font-size: 13px; color: #64748b; font-weight: 400;">Treats Island Candy Virtual Fundraising</span>
+                                <span style="font-size: 13px; color: #64748b; font-weight: 400;">Treats Island GO Virtual Fundraising</span>
                             </p>
                         </td>
                     </tr>
