@@ -16,6 +16,7 @@ django-ckeditor==6.7.3
 django-colorfield==0.14.0
 django-cors-headers==4.9.0
 django-js-asset==4.0.1
+django-redis==7.0.0
 djangorestframework==3.17.1
 djangorestframework_simplejwt==5.5.1
 dotenv==0.9.9
@@ -54,6 +55,7 @@ PyJWT==2.12.1
 python-decouple==3.8
 python-dotenv==1.2.2
 python-slugify==8.0.4
+redis==8.1.0
 requests==2.34.2
 sqlparse==0.5.5
 stripe==15.1.0

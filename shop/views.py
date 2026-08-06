@@ -8,6 +8,7 @@ import stripe
 from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
 from django.contrib.auth import get_user_model
 User = get_user_model()
 from notification.utils import send_push_notification
@@ -70,6 +71,7 @@ def address_session_metadata(address, name=None, email=None, phone=None):
 class ProductsView(APIView):
     permission_classes = [permissions.AllowAny]
 
+    @method_decorator(cache_page(60 * 15))
     def get(self, request):
         products = Product.objects.filter(is_active=True)
         serializer = ProductSerializer(products, many=True)
@@ -79,6 +81,7 @@ class ProductsView(APIView):
 class ProductDetailView(APIView):
     permission_classes = [permissions.AllowAny]
 
+    @method_decorator(cache_page(60 * 15))
     def get(self, request, slug):
         try:
             product = Product.objects.get(slug=slug, is_active=True)
