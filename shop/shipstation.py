@@ -42,12 +42,37 @@ def send_order_to_shipstation(order):
     except (ValueError, TypeError, AttributeError):
         pass
 
+    shipping_val = 0.0
+    try:
+        if order.delivery_charge:
+            shipping_val = float(order.delivery_charge)
+    except (ValueError, TypeError, AttributeError):
+        pass
+        
+    order_total = (price_val * order.quantity) + shipping_val
+
+    item_weight = 0.12
+    try:
+        if hasattr(order.product, 'weight') and order.product.weight is not None:
+            item_weight = float(order.product.weight)
+    except (ValueError, TypeError, AttributeError):
+        pass
+
+    total_weight = item_weight * order.quantity
+
     # Construct ShipStation payload
     payload = {
         "orderNumber": f"Order-{order.id}",
         "orderDate": order.created_at.isoformat() if order.created_at else "",
         "orderStatus": "awaiting_shipment",
         "customerEmail": order.email or "",
+        "amountPaid": order_total,
+        "shippingAmount": shipping_val,
+        "orderTotal": order_total,
+        "weight": {
+            "value": total_weight,
+            "units": "ounces"
+        },
         "billTo": {
             "name": order.name or "Customer",
             "street1": street1,
@@ -73,7 +98,11 @@ def send_order_to_shipstation(order):
                 "sku": order.product.slug or f"prod-{order.product.id}",
                 "name": order.product.name,
                 "quantity": order.quantity,
-                "unitPrice": price_val
+                "unitPrice": price_val,
+                "weight": {
+                    "value": item_weight,
+                    "units": "ounces"
+                }
             }
         ]
     }

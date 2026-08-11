@@ -11,6 +11,7 @@ class Product(models.Model):
     description = models.TextField(blank=True, null=True)
     price = models.CharField(max_length=50)
     stock = models.CharField(max_length=255)
+    weight = models.DecimalField(max_digits=8, decimal_places=2, default=0.12)
     image = models.ImageField(upload_to='product_images')
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)

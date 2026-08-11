@@ -156,7 +156,7 @@ class CartView(APIView):
             except (ValueError, TypeError):
                 pass
                 
-        delivery_charge = 5.00 if cart.exists() else 0.00
+        delivery_charge = 0.00
 
         return Response({
             "items": serializer.data,
@@ -276,7 +276,7 @@ class CreateCheckoutSessionView(APIView):
                 'quantity': item.quantity,
             })
             
-        delivery_charge_dollars = 5.00  # $5.00 delivery charge
+        delivery_charge_dollars = 0.00  # $0.00 delivery charge
             
         customer = None
         idempotency_key = request.data.get('idempotency_key', str(uuid.uuid4()))
@@ -295,18 +295,6 @@ class CreateCheckoutSessionView(APIView):
                 payment_intent_data={
                     "metadata": address_session_metadata(address, name, email, phone),
                 },
-                shipping_options=[
-                    {
-                        'shipping_rate_data': {
-                            'type': 'fixed_amount',
-                            'fixed_amount': {
-                                'amount': int(delivery_charge_dollars * 100),
-                                'currency': 'usd',
-                            },
-                            'display_name': 'Delivery Charge',
-                        },
-                    },
-                ],
                 phone_number_collection={
                     'enabled': True
                 },
@@ -323,7 +311,7 @@ class CreateCheckoutSessionView(APIView):
                         stripe_session_id=checkout_session.id,
                         invoice_id=idempotency_key,
                         is_paid=False,
-                        delivery_charge="5.00"
+                        delivery_charge="0.00"
                     )
 
             return Response({'sessionId': checkout_session.id, 'url': checkout_session.url})
@@ -418,7 +406,7 @@ def finalize_order(session):
             order.state = state
             order.postal_code = postal_code
             order.country = country
-            order.delivery_charge = "5.00"
+            order.delivery_charge = "0.00"
             if user_id:
                 try:
                     order.user = User.objects.get(id=int(user_id))
@@ -468,7 +456,7 @@ def finalize_order(session):
                     state=state,
                     postal_code=postal_code,
                     country=country,
-                    delivery_charge="5.00"
+                    delivery_charge="0.00"
                 )
                 try:
                     from .shipstation import send_order_to_shipstation
@@ -552,7 +540,7 @@ class GuestCheckoutSessionView(APIView):
         if not line_items:
             return Response({"error": "No valid products found"}, status=status.HTTP_400_BAD_REQUEST)
 
-        delivery_charge_dollars = 5.00  # $5.00 delivery charge
+        delivery_charge_dollars = 0.00  # $0.00 delivery charge
 
         customer = None
         idempotency_key = request.data.get('idempotency_key', str(uuid.uuid4()))
@@ -570,18 +558,6 @@ class GuestCheckoutSessionView(APIView):
                 payment_intent_data={
                     "metadata": address_session_metadata(address, name, email, phone),
                 },
-                shipping_options=[
-                    {
-                        'shipping_rate_data': {
-                            'type': 'fixed_amount',
-                            'fixed_amount': {
-                                'amount': int(delivery_charge_dollars * 100),
-                                'currency': 'usd',
-                            },
-                            'display_name': 'Delivery Charge',
-                        },
-                    },
-                ],
                 phone_number_collection={
                     'enabled': True
                 },
@@ -602,7 +578,7 @@ class GuestCheckoutSessionView(APIView):
                         stripe_session_id=checkout_session.id,
                         invoice_id=idempotency_key,
                         is_paid=False,
-                        delivery_charge="5.00"
+                        delivery_charge="0.00"
                     )
                 
             return Response({'sessionId': checkout_session.id, 'url': checkout_session.url})
