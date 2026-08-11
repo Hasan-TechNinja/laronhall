@@ -235,8 +235,8 @@ SMARTY_AUTH_TOKEN = config('SMARTY_AUTH_TOKEN', default='rH3I7mbgO7PkccwMcsXA')
 
 
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=500),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+    "ACCESS_TOKEN_LIFETIME": timedelta(days=30),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=60),
     "ROTATE_REFRESH_TOKENS": False,
     "BLACKLIST_AFTER_ROTATION": False,
     "UPDATE_LAST_LOGIN": False,
