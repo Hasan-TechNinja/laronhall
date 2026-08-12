@@ -69,7 +69,6 @@ def send_order_to_shipstation(order):
         "amountPaid": order_total,
         "shippingAmount": shipping_val,
         "orderTotal": order_total,
-        "carrierCode": "ups",
         "weight": {
             "value": total_weight,
             "units": "ounces"
