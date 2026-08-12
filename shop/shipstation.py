@@ -113,8 +113,29 @@ def send_order_to_shipstation(order):
             logger.info(f"Successfully pushed Order {order.id} to ShipStation.")
             return True
         else:
-            logger.error(f"Failed to push Order {order.id} to ShipStation. Response: {response.status_code} - {response.text}")
+            error_msg = f"Failed to push Order {order.id} to ShipStation. Response: {response.status_code} - {response.text}"
+            logger.error(error_msg)
+            try:
+                from django.core.mail import send_mail
+                send_mail(
+                    "ShipStation Debug Error", 
+                    f"ShipStation rejected the order!\n\nStatus: {response.status_code}\nResponse: {response.text}\n\nPayload sent:\n{payload}", 
+                    settings.DEFAULT_FROM_EMAIL, 
+                    ["hasantechninja@hotmail.com"]
+                )
+            except:
+                pass
             return False
     except Exception as e:
         logger.error(f"Exception raised while pushing Order {order.id} to ShipStation: {str(e)}")
+        try:
+            from django.core.mail import send_mail
+            send_mail(
+                "ShipStation Debug Crash", 
+                f"Crash: {str(e)}\n\nPayload sent:\n{payload}", 
+                settings.DEFAULT_FROM_EMAIL, 
+                ["hasantechninja@hotmail.com"]
+            )
+        except:
+            pass
         return False
