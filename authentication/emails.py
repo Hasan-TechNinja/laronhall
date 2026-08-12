@@ -584,3 +584,120 @@ Treats Island Candy Virtual Fundraising
     except Exception as e:
         print(f"[EMAIL ERROR] Failed to send banking details reminder email to {email}: {e}")
 
+
+def send_order_confirmation_email(email, customer_name, orders):
+    """
+    Sends an order confirmation email to the customer.
+    """
+    subject = "Order Confirmation - Treats Island Candy"
+    
+    order_items_text = ""
+    order_items_html = ""
+    total = 0.0
+    
+    for order in orders:
+        price = 0.0
+        try:
+            price = float(order.product.price)
+        except:
+            pass
+        item_total = price * order.quantity
+        total += item_total
+        
+        order_items_text += f"- {order.product.name} (x{order.quantity}) - ${item_total:.2f}\n"
+        order_items_html += f"""
+        <tr>
+            <td style="padding: 12px 0; border-bottom: 1px solid #e2e8f0; color: #475569;">
+                {order.product.name} (x{order.quantity})
+            </td>
+            <td style="padding: 12px 0; border-bottom: 1px solid #e2e8f0; text-align: right; color: #1e293b; font-weight: 600;">
+                ${item_total:.2f}
+            </td>
+        </tr>
+        """
+        
+    shipping_charge = 0.0
+    # Delivery charge is now 0.00, but we can display it.
+    
+    text_content = f"""Dear {customer_name},
+
+Thank you for your order! Your purchase directly helps our fundraising efforts, and we are so grateful for your support.
+
+Here are your order details:
+{order_items_text}
+Total Paid: ${total:.2f}
+
+We are currently preparing your delicious treats. You will receive another notification once your order ships.
+
+If you have any questions, please reply to this email.
+
+Best Regards,
+Treats Island Candy Team
+"""
+
+    html_content = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Order Confirmation</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color: #334155;">
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="padding: 40px 0;">
+        <tr>
+            <td align="center">
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                    <tr>
+                        <td align="center" style="background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%); padding: 35px 20px;">
+                            <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 800;">Order Confirmation</h1>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 40px 30px;">
+                            <h2 style="margin-top: 0; margin-bottom: 20px; font-size: 20px; color: #1e293b;">Hi {customer_name},</h2>
+                            <p style="margin: 0 0 16px 0; font-size: 16px; line-height: 24px; color: #475569;">
+                                Thank you for your order! Your purchase directly helps our fundraising efforts, and we are so grateful for your support.
+                            </p>
+                            
+                            <div style="background-color: #f8fafc; border-radius: 8px; padding: 20px; margin: 24px 0;">
+                                <h3 style="margin: 0 0 16px 0; font-size: 16px; color: #1e293b;">Order Summary</h3>
+                                <table width="100%" cellpadding="0" cellspacing="0" style="font-size: 15px;">
+                                    {order_items_html}
+                                    <tr>
+                                        <td style="padding-top: 16px; font-weight: 600; color: #1e293b;">Total Paid</td>
+                                        <td style="padding-top: 16px; text-align: right; font-weight: 700; color: #2563eb; font-size: 18px;">${total:.2f}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                            
+                            <p style="margin: 0 0 24px 0; font-size: 16px; line-height: 24px; color: #475569;">
+                                We are currently preparing your delicious treats. We will let you know as soon as your order ships.
+                            </p>
+                            
+                            <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 24px 0;">
+                            
+                            <p style="margin: 0; font-size: 15px; color: #475569; font-weight: 600;">
+                                Best Regards,<br>
+                                <span style="color: #1e40af;">Treats Island Candy Team</span>
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+"""
+    try:
+        from django.core.mail import send_mail
+        send_mail(
+            subject=subject,
+            message=text_content,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[email],
+            html_message=html_content,
+            fail_silently=False,
+        )
+    except Exception as e:
+        print(f"[EMAIL ERROR] Failed to send order confirmation to {email}: {e}")
+

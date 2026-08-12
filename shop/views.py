@@ -428,6 +428,13 @@ def finalize_order(session):
                     body=f"Someone purchased '{order.product.name}' from your shop.",
                     data={"fundraiser_id": str(order.fundraiser.id), "order_id": str(order.id), "type": "new_order"}
                 )
+                
+        # Send confirmation email to customer
+        try:
+            from authentication.emails import send_order_confirmation_email
+            send_order_confirmation_email(email, name, list(unpaid_orders))
+        except Exception:
+            pass
             
         # Clear cart for user if user exists
         if user_id:
@@ -442,6 +449,7 @@ def finalize_order(session):
         try:
             user = User.objects.get(id=int(user_id))
             cart_items = Cart.objects.filter(user=user)
+            created_orders = []
             for item in cart_items:
                 order = Order.objects.create(
                     user=user,
@@ -460,6 +468,7 @@ def finalize_order(session):
                     country=country,
                     delivery_charge="0.00"
                 )
+                created_orders.append(order)
                 try:
                     from .shipstation import send_order_to_shipstation
                     send_order_to_shipstation(order)
@@ -473,6 +482,14 @@ def finalize_order(session):
                         body=f"Someone purchased '{order.product.name}' from your shop.",
                         data={"fundraiser_id": str(order.fundraiser.id), "order_id": str(order.id), "type": "new_order"}
                     )
+            
+            # Send confirmation email to customer
+            try:
+                from authentication.emails import send_order_confirmation_email
+                send_order_confirmation_email(email, name, created_orders)
+            except Exception:
+                pass
+                
             cart_items.delete()
         except (User.DoesNotExist, ValueError, TypeError):
             pass
