@@ -58,9 +58,7 @@ def validate_us_address(address):
     candidate = candidates[0]
     components = candidate.get("components", {})
     analysis = candidate.get("analysis", {})
-    match_code = analysis.get("dpv_match_code")
-    if match_code not in {"Y", "S", "D"}:
-        raise AddressValidationError("The address could not be confirmed for delivery")
+    match_code = analysis.get("dpv_match_code", "")
 
     return {
         "street": candidate.get("delivery_line_1", street),

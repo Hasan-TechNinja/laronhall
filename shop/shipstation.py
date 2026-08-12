@@ -51,7 +51,7 @@ def send_order_to_shipstation(order):
         
     order_total = (price_val * order.quantity) + shipping_val
 
-    item_weight = 0.12
+    item_weight = 12.00
     try:
         if hasattr(order.product, 'weight') and order.product.weight is not None:
             item_weight = float(order.product.weight)
@@ -69,6 +69,7 @@ def send_order_to_shipstation(order):
         "amountPaid": order_total,
         "shippingAmount": shipping_val,
         "orderTotal": order_total,
+        "carrierCode": "ups",
         "weight": {
             "value": total_weight,
             "units": "ounces"

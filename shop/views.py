@@ -383,11 +383,13 @@ def finalize_order(session):
         address_obj = customer_details.address
         name = customer_details.name or name
         
-    address = (
-        f"{address_obj.line1} {address_obj.line2 or ''}".strip()
-        if address_obj
-        else metadata.get("shipping_line1")
-    )
+    if address_obj:
+        if address_obj.line2:
+            address = f"{address_obj.line1}\n{address_obj.line2}".strip()
+        else:
+            address = address_obj.line1
+    else:
+        address = metadata.get("shipping_line1")
     city = address_obj.city if address_obj else metadata.get("shipping_city")
     state = address_obj.state if address_obj else metadata.get("shipping_state")
     postal_code = address_obj.postal_code if address_obj else metadata.get("shipping_postal_code")
