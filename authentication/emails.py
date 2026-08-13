@@ -617,7 +617,26 @@ def send_order_confirmation_email(email, customer_name, orders):
         """
         
     shipping_charge = 0.0
-    # Delivery charge is now 0.00, but we can display it.
+    for order in orders:
+        try:
+            if order.delivery_charge:
+                shipping_charge += float(order.delivery_charge)
+        except (ValueError, TypeError):
+            pass
+
+    total += shipping_charge
+
+    order_items_text += f"- Shipping - ${shipping_charge:.2f}\n"
+    order_items_html += f"""
+        <tr>
+            <td style="padding: 12px 0; border-bottom: 1px solid #e2e8f0; color: #475569;">
+                Standard Shipping
+            </td>
+            <td style="padding: 12px 0; border-bottom: 1px solid #e2e8f0; text-align: right; color: #1e293b; font-weight: 600;">
+                ${shipping_charge:.2f}
+            </td>
+        </tr>
+    """
     
     text_content = f"""Dear {customer_name},
 
