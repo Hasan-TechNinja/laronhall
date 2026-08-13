@@ -289,3 +289,4 @@ if firebase_cred_path.exists() and not firebase_admin._apps:
 # ShipStation Configuration
 SHIPSTATION_API_KEY = config('SHIPSTATION_API_KEY', default='demo_api_key_12345')
 SHIPSTATION_API_SECRET = config('SHIPSTATION_API_SECRET', default='demo_api_secret_67890')
+SHIPSTATION_CARRIER_CODE = config('SHIPSTATION_CARRIER_CODE', default='stamps_com')
