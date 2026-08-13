@@ -276,7 +276,20 @@ class CreateCheckoutSessionView(APIView):
                 'quantity': item.quantity,
             })
             
-        delivery_charge_dollars = 0.00  # $0.00 delivery charge
+        total_weight_ounces = 0.0
+        for item in cart_items:
+            try:
+                # assuming product weight is in ounces
+                weight = float(item.product.weight)
+            except (ValueError, TypeError, AttributeError):
+                weight = 12.0
+            total_weight_ounces += (weight * item.quantity)
+
+        try:
+            from .shipstation import get_shipping_rate
+            delivery_charge_dollars = get_shipping_rate(address, total_weight_ounces)
+        except Exception:
+            delivery_charge_dollars = 5.00
             
         customer = None
         idempotency_key = request.data.get('idempotency_key', str(uuid.uuid4()))
@@ -295,6 +308,19 @@ class CreateCheckoutSessionView(APIView):
                 payment_intent_data={
                     "metadata": address_session_metadata(address, name, email, phone),
                 },
+                shipping_options=[
+                    {
+                        "shipping_rate_data": {
+                            "type": "fixed_amount",
+                            "fixed_amount": {"amount": int(delivery_charge_dollars * 100), "currency": "usd"},
+                            "display_name": "Standard Shipping",
+                            "delivery_estimate": {
+                                "minimum": {"unit": "business_day", "value": 3},
+                                "maximum": {"unit": "business_day", "value": 5},
+                            },
+                        },
+                    },
+                ],
                 phone_number_collection={
                     'enabled': True
                 },
@@ -395,9 +421,15 @@ def finalize_order(session):
     postal_code = address_obj.postal_code if address_obj else metadata.get("shipping_postal_code")
     country = address_obj.country if address_obj else metadata.get("shipping_country")
 
+    shipping_cost = 0.00
+    if hasattr(session, 'total_details') and session.total_details and hasattr(session.total_details, 'amount_shipping'):
+        if session.total_details.amount_shipping:
+            shipping_cost = session.total_details.amount_shipping / 100.0
+
     # Handle Guest/Pre-created Orders
     unpaid_orders = Order.objects.filter(stripe_session_id=session.id, is_paid=False)
     if unpaid_orders.exists():
+        first_order = True
         for order in unpaid_orders:
             order.is_paid = True
             order.email = email
@@ -408,7 +440,11 @@ def finalize_order(session):
             order.state = state
             order.postal_code = postal_code
             order.country = country
-            order.delivery_charge = "0.00"
+            if first_order:
+                order.delivery_charge = str(shipping_cost)
+                first_order = False
+            else:
+                order.delivery_charge = "0.00"
             if user_id:
                 try:
                     order.user = User.objects.get(id=int(user_id))
@@ -450,6 +486,7 @@ def finalize_order(session):
             user = User.objects.get(id=int(user_id))
             cart_items = Cart.objects.filter(user=user)
             created_orders = []
+            first_order = True
             for item in cart_items:
                 order = Order.objects.create(
                     user=user,
@@ -466,8 +503,9 @@ def finalize_order(session):
                     state=state,
                     postal_code=postal_code,
                     country=country,
-                    delivery_charge="0.00"
+                    delivery_charge=str(shipping_cost) if first_order else "0.00"
                 )
+                first_order = False
                 created_orders.append(order)
                 try:
                     from .shipstation import send_order_to_shipstation
@@ -559,7 +597,19 @@ class GuestCheckoutSessionView(APIView):
         if not line_items:
             return Response({"error": "No valid products found"}, status=status.HTTP_400_BAD_REQUEST)
 
-        delivery_charge_dollars = 0.00  # $0.00 delivery charge
+        total_weight_ounces = 0.0
+        for product, quantity, fundraiser_id in order_items_to_create:
+            try:
+                weight = float(product.weight)
+            except (ValueError, TypeError, AttributeError):
+                weight = 12.0
+            total_weight_ounces += (weight * quantity)
+
+        try:
+            from .shipstation import get_shipping_rate
+            delivery_charge_dollars = get_shipping_rate(address, total_weight_ounces)
+        except Exception:
+            delivery_charge_dollars = 5.00
 
         customer = None
         idempotency_key = request.data.get('idempotency_key', str(uuid.uuid4()))
@@ -577,6 +627,19 @@ class GuestCheckoutSessionView(APIView):
                 payment_intent_data={
                     "metadata": address_session_metadata(address, name, email, phone),
                 },
+                shipping_options=[
+                    {
+                        "shipping_rate_data": {
+                            "type": "fixed_amount",
+                            "fixed_amount": {"amount": int(delivery_charge_dollars * 100), "currency": "usd"},
+                            "display_name": "Standard Shipping",
+                            "delivery_estimate": {
+                                "minimum": {"unit": "business_day", "value": 3},
+                                "maximum": {"unit": "business_day", "value": 5},
+                            },
+                        },
+                    },
+                ],
                 phone_number_collection={
                     'enabled': True
                 },

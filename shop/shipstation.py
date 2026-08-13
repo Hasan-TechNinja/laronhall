@@ -5,6 +5,61 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
+def get_shipping_rate(address, total_weight_ounces):
+    """
+    Fetches the lowest available shipping rate from ShipStation.
+    Falls back to a default rate if the API call fails or is unconfigured.
+    """
+    default_rate = 5.00
+    api_key = getattr(settings, 'SHIPSTATION_API_KEY', None)
+    api_secret = getattr(settings, 'SHIPSTATION_API_SECRET', None)
+    
+    if not api_key or not api_secret:
+        return default_rate
+        
+    url = "https://ssapi.shipstation.com/shipments/getrates"
+    
+    auth_str = f"{api_key}:{api_secret}"
+    auth_bytes = auth_str.encode('ascii')
+    base64_bytes = base64.b64encode(auth_bytes)
+    base64_str = base64_bytes.decode('ascii')
+    
+    headers = {
+        'Authorization': f'Basic {base64_str}',
+        'Content-Type': 'application/json'
+    }
+    
+    carrier_code = getattr(settings, 'SHIPSTATION_CARRIER_CODE', 'stamps_com')
+    from_postal_code = getattr(settings, 'SHIPSTATION_ORIGIN_ZIP', '90210')
+    
+    payload = {
+        "carrierCode": carrier_code,
+        "fromPostalCode": from_postal_code,
+        "toState": address.get("state", ""),
+        "toCountry": address.get("country", "US"),
+        "toPostalCode": address.get("zipcode", ""),
+        "weight": {
+            "value": total_weight_ounces,
+            "units": "ounces"
+        }
+    }
+    
+    try:
+        response = requests.post(url, json=payload, headers=headers, timeout=10)
+        if response.status_code == 200:
+            rates = response.json()
+            if rates and isinstance(rates, list):
+                # Return the cheapest rate
+                cheapest = min(rates, key=lambda x: x.get('shipmentCost', float('inf')))
+                return float(cheapest.get('shipmentCost', default_rate))
+        else:
+            logger.error(f"ShipStation getrates failed: {response.text}")
+    except Exception as e:
+        logger.error(f"ShipStation getrates exception: {str(e)}")
+        
+    return default_rate
+
+
 def send_order_to_shipstation(order):
     """
     Sends a finalized paid order to the ShipStation API.
