@@ -24,7 +24,7 @@ def validate_us_address(address):
         "auth-token": auth_token,
         "street": street,
         "candidates": 1,
-        "match": "strict",
+        "match": "invalid",
     }
     for field in ("street2", "city", "state", "zipcode"):
         value = str(address.get(field, "")).strip()

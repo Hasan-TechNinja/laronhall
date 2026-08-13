@@ -30,7 +30,7 @@ def get_shipping_rate(address, total_weight_ounces):
     }
     
     carrier_code = getattr(settings, 'SHIPSTATION_CARRIER_CODE', 'stamps_com')
-    from_postal_code = getattr(settings, 'SHIPSTATION_ORIGIN_ZIP', '91730')
+    from_postal_code = getattr(settings, 'SHIPSTATION_ORIGIN_ZIP', '91739')
     
     payload = {
         "carrierCode": carrier_code,
