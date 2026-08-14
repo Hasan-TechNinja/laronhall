@@ -21,6 +21,7 @@ class CartAdmin(admin.ModelAdmin):
     list_filter = ('user', 'product', 'quantity')
     search_fields = ('user', 'product', 'quantity')
     ordering = ('-created_at',)
+    list_select_related = ('user', 'product')
 
     def has_delete_permission(self, request, obj=None):
         return False
@@ -31,6 +32,7 @@ class OrderAdmin(admin.ModelAdmin):
     list_filter = ('user', 'product', 'quantity', 'shipment_status', 'carrier')
     search_fields = ('user__phone', 'user__email', 'product__name', 'email', 'name', 'tracking_number')
     ordering = ('-created_at',)
+    list_select_related = ('user', 'product', 'fundraiser')
 
     def has_delete_permission(self, request, obj=None):
         return False

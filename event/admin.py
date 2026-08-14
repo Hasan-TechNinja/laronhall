@@ -33,6 +33,7 @@ class EventAdmin(admin.ModelAdmin):
     list_filter = ('is_active', 'type', 'start_date', 'end_date')
     search_fields = ('name', 'code', 'creator__email', 'creator__username', 'creator__full_name')
     ordering = ('id',)
+    list_select_related = ('creator', 'type')
 
     def creator_name(self, obj):
         if obj.creator:
@@ -59,6 +60,9 @@ class EventAdmin(admin.ModelAdmin):
     current_status.short_description = "Status"
 
     def get_total_sales(self, obj):
+        if hasattr(obj, '_cached_total_sales'):
+            return obj._cached_total_sales
+            
         from shop.models import Order
         total = 0.0
         orders = Order.objects.filter(fundraiser__event=obj, is_paid=True).select_related('product')
@@ -67,6 +71,8 @@ class EventAdmin(admin.ModelAdmin):
                 total += float(order.product.price) * order.quantity
             except (ValueError, TypeError, AttributeError):
                 pass
+                
+        obj._cached_total_sales = total
         return total
 
     def total_sales(self, obj):
@@ -102,3 +108,4 @@ class FundraiserAdmin(admin.ModelAdmin):
     list_filter = ('user', 'event', 'created_at', 'updated_at')
     search_fields = ('user__email', 'event__code')
     ordering = ('id',)
+    list_select_related = ('user', 'event')
