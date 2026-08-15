@@ -24,6 +24,8 @@ from rest_framework_simplejwt.views import (
 )
 from django.conf import settings
 from django.conf.urls.static import static
+from django.views.static import serve
+from django.views.decorators.cache import cache_page
 
 
 urlpatterns = [
@@ -40,5 +42,15 @@ urlpatterns = [
     path('api/token/blacklist/', TokenBlacklistView.as_view(), name='token_blacklist'),
 ]
 
+@cache_page(60 * 60 * 24)  # Cache media files in Redis for 24 hours
+def cached_media_serve(request, path, document_root=None, show_indexes=False):
+    return serve(request, path, document_root=document_root, show_indexes=show_indexes)
+
 if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    # Use cached view for media files
+    from django.urls import re_path
+    urlpatterns += [
+        re_path(r'^media/(?P<path>.*)$', cached_media_serve, {'document_root': settings.MEDIA_ROOT}),
+    ]
+    # Keep standard static serving for static files if needed
+    # urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
