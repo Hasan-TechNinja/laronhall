@@ -240,71 +240,119 @@ class CreateCheckoutSessionView(APIView):
 
     def post(self, request):
         write_checkout_log("CreateCheckoutSessionView", request)
+        
+        is_guest = not request.user.is_authenticated
         payload_cart = request.data.get('cart')
-        if payload_cart and isinstance(payload_cart, list):
-            # Sync payload cart to database cart for this user
-            Cart.objects.filter(user=request.user).delete()
+        
+        order_items_to_create = [] # List of tuples: (product, quantity, fundraiser)
+        line_items = []
+        total_weight_ounces = 0.0
+
+        if not is_guest:
+            # Authenticated User: Sync payload cart to database cart
+            if payload_cart and isinstance(payload_cart, list):
+                Cart.objects.filter(user=request.user).delete()
+                for item in payload_cart:
+                    slug = item.get('slug')
+                    quantity = item.get('quantity', 1)
+                    fundraiser_id = item.get('fundraiser_id')
+                    try:
+                        product = Product.objects.get(slug=slug, is_active=True)
+                        fundraiser = None
+                        if fundraiser_id:
+                            from event.models import Fundraiser
+                            try:
+                                fundraiser = Fundraiser.objects.get(id=fundraiser_id)
+                            except Fundraiser.DoesNotExist:
+                                pass
+                        Cart.objects.create(user=request.user, product=product, quantity=quantity, fundraiser=fundraiser)
+                    except Product.DoesNotExist:
+                        pass
+            
+            cart_items = Cart.objects.filter(user=request.user)
+            if not cart_items.exists():
+                write_checkout_log("CreateCheckoutSessionView", request, error="Cart is empty")
+                return Response({"error": "Cart is empty"}, status=status.HTTP_400_BAD_REQUEST)
+                
+            for item in cart_items:
+                try:
+                    unit_amount = int(float(item.product.price) * 100)
+                except (ValueError, TypeError):
+                    unit_amount = 0
+                    
+                line_items.append({
+                    'price_data': {
+                        'currency': 'usd',
+                        'product_data': {'name': item.product.name},
+                        'unit_amount': unit_amount,
+                    },
+                    'quantity': item.quantity,
+                })
+                
+                try:
+                    weight = float(item.product.weight)
+                except (ValueError, TypeError, AttributeError):
+                    weight = 12.0
+                total_weight_ounces += (weight * item.quantity)
+                order_items_to_create.append((item.product, item.quantity, item.fundraiser))
+                
+        else:
+            # Guest User logic
+            if not payload_cart or not isinstance(payload_cart, list):
+                write_checkout_log("CreateCheckoutSessionView", request, error="Cart is empty or invalid format")
+                return Response({"error": "Cart is empty or invalid format. Expecting a list of items under 'cart' key."}, status=status.HTTP_400_BAD_REQUEST)
+                
             for item in payload_cart:
                 slug = item.get('slug')
                 quantity = item.get('quantity', 1)
                 fundraiser_id = item.get('fundraiser_id')
                 try:
                     product = Product.objects.get(slug=slug, is_active=True)
+                    unit_amount = int(float(product.price) * 100)
+                    
+                    line_items.append({
+                        'price_data': {
+                            'currency': 'usd',
+                            'product_data': {'name': product.name},
+                            'unit_amount': unit_amount,
+                        },
+                        'quantity': quantity,
+                    })
+                    
                     fundraiser = None
                     if fundraiser_id:
                         from event.models import Fundraiser
-                        try:
-                            fundraiser = Fundraiser.objects.get(id=fundraiser_id)
-                        except Fundraiser.DoesNotExist:
-                            pass
-                    Cart.objects.create(user=request.user, product=product, quantity=quantity, fundraiser=fundraiser)
-                except Product.DoesNotExist:
-                    pass
-        
-        cart_items = Cart.objects.filter(user=request.user)
-        
-        if not cart_items.exists():
-            write_checkout_log("CreateCheckoutSessionView", request, error="Cart is empty")
-            return Response({"error": "Cart is empty"}, status=status.HTTP_400_BAD_REQUEST)
+                        fundraiser = Fundraiser.objects.filter(id=fundraiser_id).first()
+                    order_items_to_create.append((product, quantity, fundraiser))
+                    
+                    try:
+                        weight = float(product.weight)
+                    except (ValueError, TypeError, AttributeError):
+                        weight = 12.0
+                    total_weight_ounces += (weight * quantity)
+                except (Product.DoesNotExist, ValueError, TypeError):
+                    continue
+                    
+            if not line_items:
+                write_checkout_log("CreateCheckoutSessionView", request, error="No valid products found")
+                return Response({"error": "No valid products found"}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Common Address Validation
         try:
             address = validate_us_address(request.data.get("address"))
         except AddressValidationError as exc:
             write_checkout_log("CreateCheckoutSessionView", request, error=f"Address Validation Failed: {str(exc)}")
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
-        name = request.data.get("name") or request.user.full_name
-        email = request.data.get("email") or request.user.email
-        phone = request.data.get("phone") or request.user.phone
+        if not is_guest:
+            name = request.data.get("name") or request.user.full_name
+            email = request.data.get("email") or request.user.email
+            phone = request.data.get("phone") or request.user.phone
+        else:
+            name = request.data.get("name")
+            email = request.data.get("email")
+            phone = request.data.get("phone")
             
-        line_items = []
-        for item in cart_items:
-            try:
-                # Stripe expects amount in cents
-                unit_amount = int(float(item.product.price) * 100)
-            except (ValueError, TypeError):
-                unit_amount = 0
-                
-            line_items.append({
-                'price_data': {
-                    'currency': 'usd',
-                    'product_data': {
-                        'name': item.product.name,
-                    },
-                    'unit_amount': unit_amount,
-                },
-                'quantity': item.quantity,
-            })
-            
-        total_weight_ounces = 0.0
-        for item in cart_items:
-            try:
-                # assuming product weight is in ounces
-                weight = float(item.product.weight)
-            except (ValueError, TypeError, AttributeError):
-                weight = 12.0
-            total_weight_ounces += (weight * item.quantity)
-
         try:
             from .shipstation import get_shipping_rate
             delivery_charge_dollars = get_shipping_rate(address, total_weight_ounces)
@@ -315,20 +363,20 @@ class CreateCheckoutSessionView(APIView):
         idempotency_key = request.data.get('idempotency_key', str(uuid.uuid4()))
         try:
             customer = create_stripe_customer(address, name, email, phone)
-            checkout_session = stripe.checkout.Session.create(
-                idempotency_key=idempotency_key,
-                payment_method_types=['card'],
-                line_items=line_items,
-                mode='payment',
-                success_url='https://treatsislandgo.com/success?session_id={CHECKOUT_SESSION_ID}',
-                cancel_url='https://treatsislandgo.com/cancel',
-                client_reference_id=str(request.user.id),
-                customer=customer.id,
-                metadata=address_session_metadata(address, name, email, phone),
-                payment_intent_data={
+            
+            checkout_kwargs = {
+                'idempotency_key': idempotency_key,
+                'payment_method_types': ['card'],
+                'line_items': line_items,
+                'mode': 'payment',
+                'success_url': 'https://treatsislandgo.com/success?session_id={CHECKOUT_SESSION_ID}',
+                'cancel_url': 'https://treatsislandgo.com/cancel',
+                'customer': customer.id,
+                'metadata': address_session_metadata(address, name, email, phone),
+                'payment_intent_data': {
                     "metadata": address_session_metadata(address, name, email, phone),
                 },
-                shipping_options=[
+                'shipping_options': [
                     {
                         "shipping_rate_data": {
                             "type": "fixed_amount",
@@ -341,19 +389,24 @@ class CreateCheckoutSessionView(APIView):
                         },
                     },
                 ],
-                phone_number_collection={
+                'phone_number_collection': {
                     'enabled': True
                 },
-            )
+            }
+            
+            if not is_guest:
+                checkout_kwargs['client_reference_id'] = str(request.user.id)
+
+            checkout_session = stripe.checkout.Session.create(**checkout_kwargs)
             
             # Pre-create unpaid orders atomically
             with transaction.atomic():
-                for item in cart_items:
+                for product, quantity, fundraiser in order_items_to_create:
                     Order.objects.create(
-                        user=request.user,
-                        product=item.product,
-                        quantity=item.quantity,
-                        fundraiser=item.fundraiser,
+                        user=request.user if not is_guest else None,
+                        product=product,
+                        quantity=quantity,
+                        fundraiser=fundraiser,
                         stripe_session_id=checkout_session.id,
                         invoice_id=idempotency_key,
                         is_paid=False,
