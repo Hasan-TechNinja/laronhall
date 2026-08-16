@@ -16,7 +16,24 @@ from .models import Review
 from .serializers import ReviewSerializer
 from django.db import transaction
 import uuid
+import os
+import datetime
 from .utils import AddressValidationError, validate_us_address
+
+def write_checkout_log(view_name, request, error=None):
+    try:
+        logs_dir = os.path.join(settings.BASE_DIR, 'logs')
+        os.makedirs(logs_dir, exist_ok=True)
+        log_file_path = os.path.join(logs_dir, 'checkout_debug.log')
+        with open(log_file_path, "a") as f:
+            f.write(f"[{datetime.datetime.now().isoformat()}] [{view_name}]\n")
+            if error:
+                f.write(f"ERROR: {error}\n")
+            f.write(f"USER AGENT: {request.META.get('HTTP_USER_AGENT', 'Unknown')}\n")
+            f.write(f"PAYLOAD: {request.data}\n")
+            f.write("-" * 50 + "\n")
+    except Exception:
+        pass
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
@@ -222,6 +239,7 @@ class CreateCheckoutSessionView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
+        write_checkout_log("CreateCheckoutSessionView", request)
         payload_cart = request.data.get('cart')
         if payload_cart and isinstance(payload_cart, list):
             # Sync payload cart to database cart for this user
@@ -246,11 +264,13 @@ class CreateCheckoutSessionView(APIView):
         cart_items = Cart.objects.filter(user=request.user)
         
         if not cart_items.exists():
+            write_checkout_log("CreateCheckoutSessionView", request, error="Cart is empty")
             return Response({"error": "Cart is empty"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             address = validate_us_address(request.data.get("address"))
         except AddressValidationError as exc:
+            write_checkout_log("CreateCheckoutSessionView", request, error=f"Address Validation Failed: {str(exc)}")
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
         name = request.data.get("name") or request.user.full_name
@@ -342,6 +362,7 @@ class CreateCheckoutSessionView(APIView):
 
             return Response({'sessionId': checkout_session.id, 'url': checkout_session.url})
         except Exception as e:
+            write_checkout_log("CreateCheckoutSessionView", request, error=f"Exception: {str(e)}")
             if customer:
                 try:
                     stripe.Customer.delete(customer.id)
@@ -556,13 +577,16 @@ class GuestCheckoutSessionView(APIView):
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
+        write_checkout_log("GuestCheckoutSessionView", request)
         cart = request.data.get('cart', [])
         if not cart or not isinstance(cart, list):
+            write_checkout_log("GuestCheckoutSessionView", request, error="Cart is empty or invalid format")
             return Response({"error": "Cart is empty or invalid format. Expecting a list of items under 'cart' key."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             address = validate_us_address(request.data.get("address"))
         except AddressValidationError as exc:
+            write_checkout_log("GuestCheckoutSessionView", request, error=f"Address Validation Failed: {str(exc)}")
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
         name = request.data.get("name")
@@ -595,6 +619,7 @@ class GuestCheckoutSessionView(APIView):
                 continue
                 
         if not line_items:
+            write_checkout_log("GuestCheckoutSessionView", request, error="No valid products found")
             return Response({"error": "No valid products found"}, status=status.HTTP_400_BAD_REQUEST)
 
         total_weight_ounces = 0.0
@@ -665,6 +690,7 @@ class GuestCheckoutSessionView(APIView):
                 
             return Response({'sessionId': checkout_session.id, 'url': checkout_session.url})
         except Exception as e:
+            write_checkout_log("GuestCheckoutSessionView", request, error=f"Exception: {str(e)}")
             if customer:
                 try:
                     stripe.Customer.delete(customer.id)
