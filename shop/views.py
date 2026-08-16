@@ -236,7 +236,7 @@ class AddressValidationView(APIView):
 
 
 class CreateCheckoutSessionView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
 
     def post(self, request):
         write_checkout_log("CreateCheckoutSessionView", request)
