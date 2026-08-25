@@ -941,7 +941,10 @@ def calculate_dashboard_metrics(filters_dict):
 
     active_campaigns_count = events_filtered.filter(start_date__lte=now, end_date__gte=now, is_active=True).count()
     upcoming_campaigns_count = events_filtered.filter(start_date__gt=now).count()
-    ending_soon_campaigns_count = events_filtered.filter(end_date__gt=now, end_date__lte=now + datetime.timedelta(days=3)).count()
+    
+    ending_soon_qs = events_filtered.filter(end_date__gt=now, end_date__lte=now + datetime.timedelta(days=3))
+    ending_soon_campaigns_count = ending_soon_qs.count()
+    ending_soon_campaigns = list(ending_soon_qs[:5])
 
     # Orders counts
     total_orders_count = orders_qs.count()
@@ -991,6 +994,13 @@ def calculate_dashboard_metrics(filters_dict):
 
     top_participants = sorted(part_performance.items(), key=lambda x: x[1], reverse=True)[:5]
 
+    # Recent Activity Mockup
+    recent_activity = []
+    for e in Event.objects.order_by('-id')[:3]:
+        recent_activity.append(f"New campaign created: {e.name or 'Event ' + str(e.id)}")
+    for o in Order.objects.order_by('-id')[:2]:
+        recent_activity.append(f"New order placed for {o.product.name}")
+
     return {
         'organizations': organizations,
         'campaigns': campaigns,
@@ -1026,6 +1036,8 @@ def calculate_dashboard_metrics(filters_dict):
 
         'top_orgs': top_orgs,
         'top_participants': top_participants,
+        'ending_soon_campaigns': ending_soon_campaigns,
+        'recent_activity': recent_activity,
     }
 
 

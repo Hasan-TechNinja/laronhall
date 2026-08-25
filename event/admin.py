@@ -18,7 +18,7 @@ from django.utils.html import format_html
 class EventAdmin(admin.ModelAdmin):
     list_display = (
         'id', 
-        'creator_name', 
+        'creator', 
         'code', 
         'start_date', 
         'end_date', 
@@ -27,13 +27,34 @@ class EventAdmin(admin.ModelAdmin):
         'amount_to_organizer', 
         'to_treats_island', 
         'view_stores', 
-        'view_sales', 
+        'sales_report', 
+        'edit_event',
+        'delete_event',
+        'relaunch_event',
         'is_active'
     )
     list_filter = ('is_active', 'type', 'start_date', 'end_date')
     search_fields = ('name', 'code', 'creator__email', 'creator__username', 'creator__full_name')
     ordering = ('id',)
     list_select_related = ('creator', 'type')
+
+    def get_urls(self):
+        from django.urls import path
+        urls = super().get_urls()
+        custom_urls = [
+            path('<path:object_id>/relaunch/', self.admin_site.admin_view(self.relaunch_view), name='event_event_relaunch'),
+        ]
+        return custom_urls + urls
+
+    def relaunch_view(self, request, object_id, *args, **kwargs):
+        from django.shortcuts import redirect
+        from django.contrib import messages
+        event = self.get_object(request, object_id)
+        if event:
+            event.is_active = True
+            event.save()
+            messages.success(request, f"Event {event.name or event.code} has been relaunched (set to active).")
+        return redirect(reverse('admin:event_event_changelist'))
 
     def creator_name(self, obj):
         if obj.creator:
@@ -78,27 +99,42 @@ class EventAdmin(admin.ModelAdmin):
     def total_sales(self, obj):
         val = self.get_total_sales(obj)
         return f"${val:.2f}"
-    total_sales.short_description = "Total Sales"
+    total_sales.short_description = "Total sales and donations"
 
     def amount_to_organizer(self, obj):
         val = self.get_total_sales(obj) * 0.5
         return f"${val:.2f}"
-    amount_to_organizer.short_description = "Amount to Organizer (50%)"
+    amount_to_organizer.short_description = "Amount due to organization"
 
     def to_treats_island(self, obj):
         val = self.get_total_sales(obj) * 0.5
         return f"${val:.2f}"
-    to_treats_island.short_description = "To Treats Island (50%)"
+    to_treats_island.short_description = "Amount due to Treats Island"
 
     def view_stores(self, obj):
         url = reverse('admin:event_fundraiser_changelist') + f'?event__id__exact={obj.id}'
         return format_html('<a class="button" href="{}">View Stores</a>', url)
-    view_stores.short_description = "Stores"
+    view_stores.short_description = "View Stores"
 
-    def view_sales(self, obj):
+    def sales_report(self, obj):
         url = reverse('admin:shop_order_changelist') + f'?fundraiser__event__id__exact={obj.id}'
-        return format_html('<a class="button" href="{}">View Sales Data</a>', url)
-    view_sales.short_description = "Sales Data"
+        return format_html('<a class="button" href="{}">Sales Report</a>', url)
+    sales_report.short_description = "Sales Report"
+
+    def edit_event(self, obj):
+        url = reverse('admin:event_event_change', args=[obj.id])
+        return format_html('<a class="button" href="{}">Edit</a>', url)
+    edit_event.short_description = "Edit"
+
+    def delete_event(self, obj):
+        url = reverse('admin:event_event_delete', args=[obj.id])
+        return format_html('<a class="button" href="{}">Delete</a>', url)
+    delete_event.short_description = "Delete"
+
+    def relaunch_event(self, obj):
+        url = reverse('admin:event_event_relaunch', args=[obj.id])
+        return format_html('<a class="button" href="{}">Relaunch</a>', url)
+    relaunch_event.short_description = "Relaunch"
 
 
 
