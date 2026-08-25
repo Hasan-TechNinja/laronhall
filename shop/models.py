@@ -82,3 +82,16 @@ class Review(models.Model):
 
     def __str__(self):
         return f"{self.name} - {self.rating} stars"
+
+
+class Report(Order):
+    class Meta:
+        proxy = True
+        verbose_name = "Report"
+        verbose_name_plural = "Reports"
+
+class FinanceSummary(Order):
+    class Meta:
+        proxy = True
+        verbose_name = "Finance Summary"
+        verbose_name_plural = "Finance Summaries"

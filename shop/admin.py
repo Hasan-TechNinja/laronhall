@@ -1,5 +1,5 @@
 from django.contrib import admin
-from . models import Product, Cart, Order, Review
+from . models import Product, Cart, Order, Review, Report, FinanceSummary
 
 # Register your models here.
 
@@ -48,6 +48,8 @@ class OrderAdmin(admin.ModelAdmin):
 admin.site.register(Product, ProductAdmin)
 admin.site.register(Cart, CartAdmin)
 admin.site.register(Order, OrderAdmin)
+admin.site.register(Report, OrderAdmin)
+admin.site.register(FinanceSummary, OrderAdmin)
 
 class ReviewAdmin(admin.ModelAdmin):
     list_display = ('name', 'rating', 'created_at')

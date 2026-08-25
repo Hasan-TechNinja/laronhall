@@ -11,6 +11,10 @@ class OrganizationType(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        verbose_name = "Organization"
+        verbose_name_plural = "Organizations"
+
     def __str__(self):
         return self.name
 
@@ -35,6 +39,10 @@ class Event(models.Model):
     end_thank_you_sent = models.BooleanField(default=False)
     banking_details_reminder_sent = models.BooleanField(default=False)
 
+    class Meta:
+        verbose_name = "Campaign"
+        verbose_name_plural = "Campaigns"
+
     def __str__(self):
         return self.name or f"Event {self.id}"
 
@@ -52,6 +60,8 @@ class Fundraiser(models.Model):
 
     class Meta:
         unique_together = ('user', 'event')
+        verbose_name = "Popup Store"
+        verbose_name_plural = "Popup Stores"
 
     def __str__(self):
         return f"{self.user.email} - {self.event.code}"
