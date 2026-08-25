@@ -355,12 +355,8 @@
                     <div class="chart-tab">YTD</div>
                 </div>
             </div>
-            <div class="chart-area">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
-                </svg>
-                <span>[ Line or bar chart area ]</span>
-                <span style="font-size: 12px; color: #cbd5e1;">(Chart visualization pending integration)</span>
+            <div class="chart-area" style="display: block; padding: 20px;">
+                <canvas id="salesChart" style="width: 100%; height: 100%;"></canvas>
             </div>
         </div>
         
@@ -489,4 +485,52 @@
     </div>
 
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var ctx = document.getElementById('salesChart').getContext('2d');
+        
+        var labels = {{ chart_labels|safe }};
+        var dataValues = {{ chart_values|safe }};
+        
+        var salesChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Sales ($)',
+                    data: dataValues,
+                    borderColor: '#0f172a',
+                    backgroundColor: 'rgba(15, 23, 42, 0.1)',
+                    borderWidth: 2,
+                    tension: 0.3,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: '#f1f5f9'
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        }
+                    }
+                }
+            }
+        });
+    });
+</script>
 {% endblock %}

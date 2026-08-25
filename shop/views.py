@@ -924,6 +924,16 @@ def calculate_dashboard_metrics(filters_dict):
     sales_ytd = sum_sales(paid_orders.filter(created_at__gte=this_year_start))
     total_sales = sum_sales(paid_orders)
 
+    # Chart Data (Last 7 days)
+    chart_labels = []
+    chart_values = []
+    for i in range(6, -1, -1):
+        day = today_start - datetime.timedelta(days=i)
+        next_day = day + datetime.timedelta(days=1)
+        day_sales = sum_sales(paid_orders.filter(created_at__gte=day, created_at__lt=next_day))
+        chart_labels.append(day.strftime('%b %d'))
+        chart_values.append(day_sales)
+
     total_donations = 0.0
 
     event_sales = sum_sales(paid_orders.filter(fundraiser__isnull=False))
@@ -1038,6 +1048,8 @@ def calculate_dashboard_metrics(filters_dict):
         'top_participants': top_participants,
         'ending_soon_campaigns': ending_soon_campaigns,
         'recent_activity': recent_activity,
+        'chart_labels': chart_labels,
+        'chart_values': chart_values,
     }
 
 
