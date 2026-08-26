@@ -140,8 +140,80 @@ class EventAdmin(admin.ModelAdmin):
 
 @admin.register(Fundraiser)
 class FundraiserAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'event', 'goal', 'created_at', 'updated_at')
-    list_filter = ('user', 'event', 'created_at', 'updated_at')
-    search_fields = ('user__email', 'event__code')
-    ordering = ('id',)
+    list_display = ('store_name', 'participant', 'sales_and_goal', 'actions_buttons')
+    list_filter = ('event', 'event__type', 'created_at', 'is_active')
+    search_fields = ('name', 'user__email', 'user__full_name', 'event__name')
+    ordering = ('-created_at',)
     list_select_related = ('user', 'event')
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        from django.db.models import Sum, F, FloatField, Value, Q
+        from django.db.models.functions import Cast, Coalesce
+        qs = qs.annotate(
+            total_sales_annotated=Coalesce(
+                Sum(
+                    Cast(F('orders__product__price'), FloatField()) * F('orders__quantity'),
+                    filter=Q(orders__is_paid=True)
+                ),
+                Value(0.0),
+                output_field=FloatField()
+            )
+        )
+        return qs
+
+    def store_name(self, obj):
+        return obj.name or f"{obj.user.email}'s Store"
+    store_name.short_description = "Store Name"
+    store_name.admin_order_field = 'name'
+
+    def participant(self, obj):
+        return getattr(obj.user, 'full_name', obj.user.email) or obj.user.email
+    participant.short_description = "Participant"
+    participant.admin_order_field = 'user__email'
+
+    def sales_and_goal(self, obj):
+        sales = getattr(obj, 'total_sales_annotated', 0.0)
+        goal = obj.goal or 0
+        if goal > 0:
+            percentage = (sales / float(goal)) * 100
+            return f"${sales:,.2f} / ${goal:,.2f} ({percentage:.0f}%)"
+        return f"${sales:,.2f} / None"
+    sales_and_goal.short_description = "Sales / Goal"
+    sales_and_goal.admin_order_field = 'total_sales_annotated'
+
+    def actions_buttons(self, obj):
+        view_url = f"/store/{obj.id}" 
+        copy_js = f"navigator.clipboard.writeText(window.location.origin + '{view_url}'); alert('Copied link!');"
+        qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://treatsislandgo.com{view_url}"
+        
+        toggle_label = "Disable" if getattr(obj, 'is_active', True) else "Enable"
+        toggle_url = reverse('admin:fundraiser_toggle_active', args=[obj.id])
+        
+        return format_html(
+            '<a class="button" href="{}" target="_blank" style="margin:2px;">View</a> '
+            '<button class="button" onclick="{}" type="button" style="margin:2px;">Copy Link</button> '
+            '<a class="button" href="{}" target="_blank" style="margin:2px;">QR</a> '
+            '<a class="button" href="{}" style="margin:2px;">{}</a>',
+            view_url, copy_js, qr_url, toggle_url, toggle_label
+        )
+    actions_buttons.short_description = "Actions"
+
+    def get_urls(self):
+        from django.urls import path
+        urls = super().get_urls()
+        custom_urls = [
+            path('<path:object_id>/toggle-active/', self.admin_site.admin_view(self.toggle_active_view), name='fundraiser_toggle_active'),
+        ]
+        return custom_urls + urls
+
+    def toggle_active_view(self, request, object_id, *args, **kwargs):
+        from django.shortcuts import redirect
+        from django.contrib import messages
+        fundraiser = self.get_object(request, object_id)
+        if fundraiser:
+            fundraiser.is_active = not getattr(fundraiser, 'is_active', True)
+            fundraiser.save()
+            status = "enabled" if fundraiser.is_active else "disabled"
+            messages.success(request, f"Popup store for {fundraiser.user.email} has been {status}.")
+        return redirect(reverse('admin:event_fundraiser_changelist'))
