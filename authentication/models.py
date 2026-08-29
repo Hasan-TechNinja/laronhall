@@ -42,7 +42,9 @@ class User(AbstractBaseUser, PermissionsMixin):
     REQUIRED_FIELDS = []
 
     def __str__(self):
-        return self.phone
+        if self.full_name:
+            return self.full_name
+        return self.email or self.phone or str(self.id)
 
 
 class RegisterOTP(models.Model):

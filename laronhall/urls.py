@@ -54,3 +54,14 @@ if settings.DEBUG:
     ]
     # Keep standard static serving for static files if needed
     # urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
+# Force unregister models from the Django admin dashboard
+try:
+    from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
+    from django.contrib.auth.models import Group
+    
+    admin.site.unregister(OutstandingToken)
+    admin.site.unregister(BlacklistedToken)
+    admin.site.unregister(Group)
+except Exception:
+    pass

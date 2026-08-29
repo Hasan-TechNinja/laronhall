@@ -3,10 +3,10 @@ from .models import RegisterOTP, PrivacyPolicy, TermsAndCondition, User
 
 # Register your models here.
 
-class RegisterOTPAdmin(admin.ModelAdmin):
-    list_display = ('user', 'otp', 'is_verified', 'created_at', 'updated_at')
+# class RegisterOTPAdmin(admin.ModelAdmin):
+#     list_display = ('user', 'otp', 'is_verified', 'created_at', 'updated_at')
 
-admin.site.register(RegisterOTP, RegisterOTPAdmin)
+# admin.site.register(RegisterOTP, RegisterOTPAdmin)
 
 class PrivacyPolicyAdmin(admin.ModelAdmin):
     list_display = ('id', 'title', 'created_at', 'updated_at')

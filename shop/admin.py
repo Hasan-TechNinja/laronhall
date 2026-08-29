@@ -16,15 +16,15 @@ class ProductAdmin(admin.ModelAdmin):
 
 
 
-class CartAdmin(admin.ModelAdmin):
-    list_display = ('user', 'product', 'quantity', 'created_at')
-    list_filter = ('user', 'product', 'quantity')
-    search_fields = ('user', 'product', 'quantity')
-    ordering = ('-created_at',)
-    list_select_related = ('user', 'product')
+# class CartAdmin(admin.ModelAdmin):
+#     list_display = ('user', 'product', 'quantity', 'created_at')
+#     list_filter = ('user', 'product', 'quantity')
+#     search_fields = ('user', 'product', 'quantity')
+#     ordering = ('-created_at',)
+#     list_select_related = ('user', 'product')
 
-    def has_delete_permission(self, request, obj=None):
-        return False
+#     def has_delete_permission(self, request, obj=None):
+#         return False
 
 
 class OrderAdmin(admin.ModelAdmin):
@@ -167,7 +167,7 @@ class ReportAdmin(ExportActionModelAdmin, admin.ModelAdmin):
 
 
 admin.site.register(Product, ProductAdmin)
-admin.site.register(Cart, CartAdmin)
+# admin.site.register(Cart, CartAdmin)
 admin.site.register(Order, OrderAdmin)
 admin.site.register(Report, ReportAdmin)
 admin.site.register(FinanceSummary, ReportAdmin)
@@ -177,4 +177,4 @@ class ReviewAdmin(admin.ModelAdmin):
     list_filter = ('rating',)
     search_fields = ('name', 'comment')
 
-admin.site.register(Review, ReviewAdmin)
+# admin.site.register(Review, ReviewAdmin)
