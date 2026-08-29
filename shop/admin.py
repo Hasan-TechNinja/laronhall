@@ -106,7 +106,7 @@ class ReportResource(resources.ModelResource):
 class ReportAdmin(ExportActionModelAdmin, admin.ModelAdmin):
     resource_class = ReportResource
     list_display = ('id', 'supporter_display', 'purchase_date_display', 'popup_store_display', 'order_total_display', 'items_qty_display', 'item_price_display', 'org_share_display', 'treats_share_display', 'donation_amount_display', 'status_display')
-    list_filter = ('fundraiser__event', 'fundraiser__event__type', 'fundraiser', 'created_at', 'is_paid', 'shipment_status', 'state')
+    list_filter = ('fundraiser__event','created_at', 'is_paid', 'shipment_status')
     search_fields = ('user__email', 'user__phone', 'email', 'name', 'fundraiser__name', 'fundraiser__event__name')
     list_select_related = ('user', 'product', 'fundraiser', 'fundraiser__event')
     ordering = ('-created_at',)
