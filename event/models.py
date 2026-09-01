@@ -20,7 +20,7 @@ class OrganizationType(models.Model):
 
 
 class Event(models.Model):
-    creator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='created_events', null=True, blank=True)
+    creator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='created_events', null=True, blank=True, verbose_name="Organiser")
     name = models.CharField(max_length=255, blank=True, null=True)
     type = models.ForeignKey(OrganizationType, on_delete=models.CASCADE, related_name="events")
     duration = models.CharField(max_length=255, default="5")
