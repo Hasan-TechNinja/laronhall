@@ -89,10 +89,16 @@ class ReportResource(resources.ModelResource):
         return obj.product.price if obj.product else 0.00
 
     def dehydrate_org_share(self, obj):
-        return self.dehydrate_order_total(obj) * 0.5
+        try:
+            return (float(obj.product.price) * obj.quantity) * 0.5
+        except Exception:
+            return 0.00
 
     def dehydrate_treats_share(self, obj):
-        return self.dehydrate_order_total(obj) * 0.5
+        try:
+            return (float(obj.product.price) * obj.quantity) * 0.5
+        except Exception:
+            return 0.00
 
     def dehydrate_status(self, obj):
         paid = "Paid" if obj.is_paid else "Unpaid"
@@ -149,11 +155,19 @@ class ReportAdmin(ExportActionModelAdmin, admin.ModelAdmin):
     item_price_display.short_description = "Item Price"
 
     def org_share_display(self, obj):
-        return f"${self.get_order_total(obj) * 0.5:.2f}"
+        try:
+            val = (float(obj.product.price) * obj.quantity) * 0.5
+            return f"${val:.2f}"
+        except Exception:
+            return "$0.00"
     org_share_display.short_description = "Org Share"
 
     def treats_share_display(self, obj):
-        return f"${self.get_order_total(obj) * 0.5:.2f}"
+        try:
+            val = (float(obj.product.price) * obj.quantity) * 0.5
+            return f"${val:.2f}"
+        except Exception:
+            return "$0.00"
     treats_share_display.short_description = "Treats Share"
 
     def status_display(self, obj):
