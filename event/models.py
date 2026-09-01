@@ -4,7 +4,7 @@ from django.db import models
 from django.conf import settings
 # Create your models here.
 class OrganizationType(models.Model):
-    name = models.CharField(max_length=255)
+    name = models.CharField(max_length=255, verbose_name="Name of Organisation")
     slug = models.SlugField(unique=True)
     description = models.TextField(blank=True, null=True)
     logo = models.ImageField(upload_to='organization_logo', blank=True, null=True)

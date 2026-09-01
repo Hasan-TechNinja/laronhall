@@ -285,19 +285,24 @@ class FundraiserAdmin(admin.ModelAdmin):
     sales_and_goal.admin_order_field = 'total_sales_annotated'
 
     def actions_buttons(self, obj):
-        view_url = f"/store/{obj.id}" 
-        copy_js = f"navigator.clipboard.writeText(window.location.origin + '{view_url}'); alert('Copied link!');"
-        qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://treatsislandgo.com{view_url}"
+        from django.conf import settings
+        domain = getattr(settings, 'FRONTEND_URL', 'https://treatsislandgo.com').rstrip('/')
+        full_url = f"{domain}/store/{obj.id}" 
+        
+        copy_js = f"navigator.clipboard.writeText('{full_url}'); alert('Copied link!');"
+        qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={full_url}"
         
         toggle_label = "Disable" if getattr(obj, 'is_active', True) else "Enable"
         toggle_url = reverse('admin:fundraiser_toggle_active', args=[obj.id])
         
+        supporters_url = reverse('admin:shop_report_changelist') + f'?fundraiser__id__exact={obj.id}'
+        
         return format_html(
-            '<a class="button" href="{}" target="_blank" style="margin:2px;">View</a> '
+            '<a class="button" href="{}" style="margin:2px;">View Supporters</a> '
             '<button class="button" onclick="{}" type="button" style="margin:2px;">Copy Link</button> '
             '<a class="button" href="{}" target="_blank" style="margin:2px;">QR</a> '
             '<a class="button" href="{}" style="margin:2px;">{}</a>',
-            view_url, copy_js, qr_url, toggle_url, toggle_label
+            supporters_url, copy_js, qr_url, toggle_url, toggle_label
         )
     actions_buttons.short_description = "Actions"
 

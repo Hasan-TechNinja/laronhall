@@ -58,12 +58,11 @@ class ReportResource(resources.ModelResource):
     item_price = fields.Field(column_name='Item Price')
     org_share = fields.Field(column_name='Org Share')
     treats_share = fields.Field(column_name='Treats Share')
-    donation_amount = fields.Field(column_name='Donation Amount')
     status = fields.Field(column_name='Status')
 
     class Meta:
         model = Report
-        fields = ('order_number', 'supporter', 'purchase_date', 'popup_store', 'order_total', 'items_qty', 'item_price', 'org_share', 'treats_share', 'donation_amount', 'status')
+        fields = ('order_number', 'supporter', 'purchase_date', 'popup_store', 'order_total', 'items_qty', 'item_price', 'org_share', 'treats_share', 'status')
         export_order = fields
 
     def dehydrate_supporter(self, obj):
@@ -95,9 +94,6 @@ class ReportResource(resources.ModelResource):
     def dehydrate_treats_share(self, obj):
         return self.dehydrate_order_total(obj) * 0.5
 
-    def dehydrate_donation_amount(self, obj):
-        return 0.00
-
     def dehydrate_status(self, obj):
         paid = "Paid" if obj.is_paid else "Unpaid"
         status = obj.shipment_status.title() if obj.shipment_status else "Unshipped"
@@ -105,7 +101,7 @@ class ReportResource(resources.ModelResource):
 
 class ReportAdmin(ExportActionModelAdmin, admin.ModelAdmin):
     resource_class = ReportResource
-    list_display = ('id', 'supporter_display', 'purchase_date_display', 'popup_store_display', 'order_total_display', 'items_qty_display', 'item_price_display', 'org_share_display', 'treats_share_display', 'donation_amount_display', 'status_display')
+    list_display = ('id', 'supporter_display', 'purchase_date_display', 'popup_store_display', 'order_total_display', 'items_qty_display', 'item_price_display', 'org_share_display', 'treats_share_display', 'status_display')
     list_filter = ('fundraiser__event','created_at', 'is_paid', 'shipment_status')
     search_fields = ('user__email', 'user__phone', 'email', 'name', 'fundraiser__name', 'fundraiser__event__name')
     list_select_related = ('user', 'product', 'fundraiser', 'fundraiser__event')
@@ -113,6 +109,11 @@ class ReportAdmin(ExportActionModelAdmin, admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+    def lookup_allowed(self, lookup, value, request=None):
+        if lookup in ('fundraiser__id__exact', 'fundraiser__id'):
+            return True
+        return super().lookup_allowed(lookup, value, request)
 
     def supporter_display(self, obj):
         name = obj.name or (getattr(obj.user, 'full_name', '') if obj.user else '')
@@ -154,10 +155,6 @@ class ReportAdmin(ExportActionModelAdmin, admin.ModelAdmin):
     def treats_share_display(self, obj):
         return f"${self.get_order_total(obj) * 0.5:.2f}"
     treats_share_display.short_description = "Treats Share"
-
-    def donation_amount_display(self, obj):
-        return "$0.00"
-    donation_amount_display.short_description = "Donation Amount"
 
     def status_display(self, obj):
         paid = "Paid" if obj.is_paid else "Unpaid"
