@@ -1,5 +1,14 @@
 from django.contrib import admin
 from . models import Product, Cart, Order, Review, Report, FinanceSummary
+from io import BytesIO
+from datetime import datetime
+from import_export import resources, fields
+from import_export.admin import ExportActionModelAdmin
+from import_export.formats import base_formats
+from reportlab.lib.pagesizes import letter, landscape
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
 
 # Register your models here.
 
@@ -10,9 +19,6 @@ class ProductAdmin(admin.ModelAdmin):
     search_fields = ('name', 'description')
     ordering = ('-created_at',)
     prepopulated_fields = {'slug': ('name',)}
-    
-    def has_delete_permission(self, request, obj=None):
-        return False
 
 
 
@@ -34,9 +40,6 @@ class OrderAdmin(admin.ModelAdmin):
     ordering = ('-created_at',)
     list_select_related = ('user', 'product', 'fundraiser')
 
-    def has_delete_permission(self, request, obj=None):
-        return False
-
     def lookup_allowed(self, lookup, value, request=None):
         if lookup in ('fundraiser__event__id__exact', 'fundraiser__event__id'):
             return True
@@ -44,9 +47,108 @@ class OrderAdmin(admin.ModelAdmin):
 
 
 
+class PDF(base_formats.Format):
+    def get_title(self):
+        return 'pdf'
 
-from import_export import resources, fields
-from import_export.admin import ExportActionModelAdmin
+    def get_extension(self):
+        return 'pdf'
+
+    def get_content_type(self):
+        return 'application/pdf'
+
+    def is_binary(self):
+        return True
+
+    def can_export(self):
+        return True
+
+    def export_data(self, dataset, **kwargs):
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=landscape(letter),
+            rightMargin=20,
+            leftMargin=20,
+            topMargin=25,
+            bottomMargin=25
+        )
+        elements = []
+        styles = getSampleStyleSheet()
+
+        title_style = ParagraphStyle(
+            'ReportTitle',
+            parent=styles['Heading1'],
+            fontSize=16,
+            leading=20,
+            textColor=colors.HexColor('#1b4332'),
+            alignment=0,
+            spaceAfter=4
+        )
+        meta_style = ParagraphStyle(
+            'ReportMeta',
+            parent=styles['Normal'],
+            fontSize=9,
+            leading=12,
+            textColor=colors.HexColor('#555555'),
+            spaceAfter=12
+        )
+
+        elements.append(Paragraph("Treats Island - Export Report", title_style))
+        date_str = datetime.now().strftime("%B %d, %Y - %I:%M %p")
+        elements.append(Paragraph(f"Generated on: {date_str}", meta_style))
+
+        headers = dataset.headers or []
+        header_style = ParagraphStyle(
+            'HeaderStyle',
+            fontName='Helvetica-Bold',
+            fontSize=8,
+            leading=10,
+            textColor=colors.white,
+            alignment=0
+        )
+        cell_style = ParagraphStyle(
+            'CellStyle',
+            fontName='Helvetica',
+            fontSize=8,
+            leading=10,
+            textColor=colors.HexColor('#222222'),
+            alignment=0
+        )
+
+        table_data = []
+        if headers:
+            table_data.append([Paragraph(str(h or ''), header_style) for h in headers])
+
+        for row in dataset:
+            data_row = []
+            for cell in row:
+                cell_text = str(cell) if cell is not None else ''
+                data_row.append(Paragraph(cell_text, cell_style))
+            table_data.append(data_row)
+
+        if table_data:
+            t = Table(table_data, repeatRows=1)
+            t.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1b4332')),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e0e0e0')),
+                ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#1b4332')),
+                ('TOPPADDING', (0, 0), (-1, -1), 5),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+                ('LEFTPADDING', (0, 0), (-1, -1), 4),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f9f9f9')]),
+            ]))
+            elements.append(t)
+
+        doc.build(elements)
+        buffer.seek(0)
+        return buffer.getvalue()
+
+if PDF not in base_formats.DEFAULT_FORMATS:
+    base_formats.DEFAULT_FORMATS.append(PDF)
 
 class ReportResource(resources.ModelResource):
     order_number = fields.Field(attribute='id', column_name='Order Number')
@@ -107,14 +209,13 @@ class ReportResource(resources.ModelResource):
 
 class ReportAdmin(ExportActionModelAdmin, admin.ModelAdmin):
     resource_class = ReportResource
+    export_formats = (base_formats.CSV, base_formats.XLSX, base_formats.TSV, base_formats.JSON, base_formats.HTML, PDF)
+    formats = export_formats
     list_display = ('id', 'supporter_display', 'purchase_date_display', 'popup_store_display', 'order_total_display', 'items_qty_display', 'item_price_display', 'org_share_display', 'treats_share_display', 'status_display')
     list_filter = ('fundraiser__event','created_at', 'is_paid', 'shipment_status')
     search_fields = ('user__email', 'user__phone', 'email', 'name', 'fundraiser__name', 'fundraiser__event__name')
     list_select_related = ('user', 'product', 'fundraiser', 'fundraiser__event')
     ordering = ('-created_at',)
-
-    def has_delete_permission(self, request, obj=None):
-        return False
 
     def lookup_allowed(self, lookup, value, request=None):
         if lookup in ('fundraiser__id__exact', 'fundraiser__id'):
@@ -181,7 +282,7 @@ admin.site.register(Product, ProductAdmin)
 # admin.site.register(Cart, CartAdmin)
 admin.site.register(Order, OrderAdmin)
 admin.site.register(Report, ReportAdmin)
-admin.site.register(FinanceSummary, ReportAdmin)
+# admin.site.register(FinanceSummary, ReportAdmin)
 
 class ReviewAdmin(admin.ModelAdmin):
     list_display = ('name', 'rating', 'created_at')

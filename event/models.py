@@ -4,7 +4,7 @@ from django.db import models
 from django.conf import settings
 # Create your models here.
 class OrganizationType(models.Model):
-    name = models.CharField(max_length=255, verbose_name="Name of Organisation")
+    name = models.CharField(max_length=255, verbose_name="Name of Organization")
     slug = models.SlugField(unique=True)
     description = models.TextField(blank=True, null=True)
     logo = models.ImageField(upload_to='organization_logo', blank=True, null=True)
@@ -20,7 +20,7 @@ class OrganizationType(models.Model):
 
 
 class Event(models.Model):
-    creator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='created_events', null=True, blank=True, verbose_name="Organiser")
+    creator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='created_events', null=True, blank=True, verbose_name="Organizer")
     name = models.CharField(max_length=255, blank=True, null=True)
     type = models.ForeignKey(OrganizationType, on_delete=models.CASCADE, related_name="events")
     duration = models.CharField(max_length=255, default="5")

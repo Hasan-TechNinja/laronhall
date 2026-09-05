@@ -42,9 +42,14 @@ class User(AbstractBaseUser, PermissionsMixin):
     REQUIRED_FIELDS = []
 
     def __str__(self):
+        details = []
+        if self.phone:
+            details.append(self.phone)
+        if self.email:
+            details.append(self.email)
         if self.full_name:
-            return self.full_name
-        return self.email or self.phone or str(self.id)
+            details.append(f"({self.full_name})")
+        return " - ".join(details) if details else f"User {self.id}"
 
 
 class RegisterOTP(models.Model):
@@ -76,6 +81,10 @@ class PrivacyPolicy(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        verbose_name = "Privacy Policy"
+        verbose_name_plural = "Privacy Policy"
+
     def __str__(self):
         return self.title
 
@@ -85,6 +94,10 @@ class TermsAndCondition(models.Model):
     description = RichTextField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Terms and Condition"
+        verbose_name_plural = "Terms and Conditions"
 
     def __str__(self):
         return self.title

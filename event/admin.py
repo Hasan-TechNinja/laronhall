@@ -5,7 +5,7 @@ from .models import OrganizationType, Event, Fundraiser
 
 @admin.register(OrganizationType)
 class OrganizationTypeAdmin(admin.ModelAdmin):
-    list_display = ('name', 'type_display', 'created_at', 'updated_at')
+    list_display = ('name', 'created_at', 'updated_at')
     search_fields = ('name',)
     prepopulated_fields = {'slug': ('name',)}
     ordering = ('-created_at',)
@@ -50,8 +50,8 @@ class EventAdmin(admin.ModelAdmin):
     list_display = (
         'id', 
         'creator', 
-        'organiser_email',
-        'organiser_phone',
+        'organizer_email',
+        'organizer_phone',
         'code', 
         'start_date', 
         'end_date', 
@@ -71,6 +71,7 @@ class EventAdmin(admin.ModelAdmin):
     search_fields = ('name', 'code', 'creator__email', 'creator__username', 'creator__full_name')
     ordering = ('id',)
     list_select_related = ('creator', 'type')
+    readonly_fields = ('organizer_email', 'organizer_phone')
 
     def get_urls(self):
         from django.urls import path
@@ -123,15 +124,15 @@ class EventAdmin(admin.ModelAdmin):
         return "-"
     creator_name.short_description = "Creator Name"
 
-    def organiser_email(self, obj):
+    def organizer_email(self, obj):
         return obj.creator.email if obj.creator and obj.creator.email else "-"
-    organiser_email.short_description = "Organiser Email"
-    organiser_email.admin_order_field = 'creator__email'
+    organizer_email.short_description = "Organizer Email"
+    organizer_email.admin_order_field = 'creator__email'
 
-    def organiser_phone(self, obj):
+    def organizer_phone(self, obj):
         return obj.creator.phone if obj.creator and obj.creator.phone else "-"
-    organiser_phone.short_description = "Organiser Phone"
-    organiser_phone.admin_order_field = 'creator__phone'
+    organizer_phone.short_description = "Organizer Phone"
+    organizer_phone.admin_order_field = 'creator__phone'
 
     def current_status(self, obj):
         from django.utils import timezone
