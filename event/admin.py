@@ -2,6 +2,7 @@ from django.contrib import admin
 from .models import OrganizationType, Event, Fundraiser
 
 # Register your models here.
+#code update from server
 
 @admin.register(OrganizationType)
 class OrganizationTypeAdmin(admin.ModelAdmin):
