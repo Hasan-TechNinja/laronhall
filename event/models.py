@@ -57,12 +57,12 @@ class Organization(Event):
 
 
 class Fundraiser(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='fundraisers')
-    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='fundraisers')
-    name = models.CharField(max_length=255, blank=True, null=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='fundraisers', verbose_name="Organizer")
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='fundraisers', verbose_name="Name of Organization")
+    name = models.CharField(max_length=255, blank=True, null=True, verbose_name="Name of Popup Store")
     video = models.FileField(upload_to='fundraisers_media/', blank=True, null=True)
     image = models.ImageField(upload_to='fundraisers_media/', blank=True, null=True)
-    description = models.TextField(blank=True, null=True)
+    description = models.TextField(blank=True, null=True, verbose_name="Add Message")
     goal = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)

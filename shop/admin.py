@@ -131,6 +131,22 @@ class PDF(base_formats.Format):
             parent=cell_style,
             alignment=1
         )
+        total_label_style = ParagraphStyle(
+            'TotalLabelStyle',
+            fontName='Helvetica-Bold',
+            fontSize=8,
+            leading=10,
+            textColor=colors.HexColor('#1b4332'),
+            alignment=2
+        )
+        total_val_style = ParagraphStyle(
+            'TotalValStyle',
+            fontName='Helvetica-Bold',
+            fontSize=8,
+            leading=10,
+            textColor=colors.HexColor('#1b4332'),
+            alignment=0
+        )
 
         table_data = []
         if headers:
@@ -140,6 +156,11 @@ class PDF(base_formats.Format):
                 header_cells.append(Paragraph(str(h or ''), style))
             table_data.append(header_cells)
 
+        due_org_total = 0.0
+        due_treats_total = 0.0
+        org_idx = headers.index('Due Organizer') if (headers and 'Due Organizer' in headers) else None
+        treats_idx = headers.index('Due Treats') if (headers and 'Due Treats' in headers) else None
+
         for row in dataset:
             data_row = []
             for col_idx, cell in enumerate(row):
@@ -148,6 +169,34 @@ class PDF(base_formats.Format):
                 style = cell_center_style if (headers and col_idx < len(headers) and str(headers[col_idx]).strip() == '#') else cell_style
                 data_row.append(Paragraph(cell_text, style))
             table_data.append(data_row)
+
+            if org_idx is not None and org_idx < len(row):
+                raw_org = str(row[org_idx] or '').replace('$', '').replace(',', '').strip()
+                try:
+                    due_org_total += float(raw_org)
+                except (ValueError, TypeError):
+                    pass
+            if treats_idx is not None and treats_idx < len(row):
+                raw_treats = str(row[treats_idx] or '').replace('$', '').replace(',', '').strip()
+                try:
+                    due_treats_total += float(raw_treats)
+                except (ValueError, TypeError):
+                    pass
+
+        has_total_row = False
+        if len(dataset) > 0 and headers and (org_idx is not None or treats_idx is not None):
+            has_total_row = True
+            total_row = []
+            for col_idx, h in enumerate(headers):
+                if col_idx == org_idx:
+                    total_row.append(Paragraph(f"$ {due_org_total:.2f}", total_val_style))
+                elif col_idx == treats_idx:
+                    total_row.append(Paragraph(f"$ {due_treats_total:.2f}", total_val_style))
+                elif org_idx is not None and col_idx == (org_idx - 1):
+                    total_row.append(Paragraph("Total:", total_label_style))
+                else:
+                    total_row.append(Paragraph("", cell_style))
+            table_data.append(total_row)
 
         col_widths = None
         if headers:
@@ -183,6 +232,14 @@ class PDF(base_formats.Format):
             if headers and '#' in headers:
                 num_idx = headers.index('#')
                 t_style.append(('ALIGN', (num_idx, 0), (num_idx, -1), 'CENTER'))
+            if has_total_row:
+                t_style.extend([
+                    ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#eef6f1')),
+                    ('LINEABOVE', (0, -1), (-1, -1), 1.2, colors.HexColor('#1b4332')),
+                    ('LINEBELOW', (0, -1), (-1, -1), 1.2, colors.HexColor('#1b4332')),
+                    ('TOPPADDING', (0, -1), (-1, -1), 6),
+                    ('BOTTOMPADDING', (0, -1), (-1, -1), 6),
+                ])
             t.setStyle(TableStyle(t_style))
             elements.append(t)
 

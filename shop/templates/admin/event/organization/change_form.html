@@ -47,9 +47,14 @@ function openSendEmailInputBox(email, sendUrl, orgName) {
       '<label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 4px; color: #444;">Subject:</label>' +
       '<input type="text" id="emailModalSubject" value="Message regarding ' + (orgName || 'organization') + '" style="width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 14px;">' +
     '</div>' +
-    '<div style="margin-bottom: 18px;">' +
+    '<div style="margin-bottom: 14px;">' +
       '<label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 4px; color: #444;">Message <span style="color:#e11d48;">*</span>:</label>' +
-      '<textarea id="emailModalMessage" rows="6" placeholder="Type your message here..." style="width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 14px; resize: vertical;"></textarea>' +
+      '<textarea id="emailModalMessage" rows="5" placeholder="Type your message here..." style="width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 14px; resize: vertical;"></textarea>' +
+    '</div>' +
+    '<div style="margin-bottom: 18px;">' +
+      '<label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 4px; color: #444;">Attachment:</label>' +
+      '<input type="file" id="emailModalAttachment" multiple style="width: 100%; box-sizing: border-box; padding: 6px 10px; border: 1px dashed #cbd5e1; border-radius: 4px; font-size: 13px; background: #f8fafc; cursor: pointer;">' +
+      '<div style="font-size: 11px; color: #64748b; margin-top: 3px;">Attach any file (PDF, images, reports, documents). Multiple files supported.</div>' +
     '</div>' +
     '<div style="display: flex; justify-content: flex-end; gap: 10px;">' +
       '<button type="button" id="btnCancelSendEmail" style="padding: 8px 16px; background: #e2e8f0; color: #334155; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 13px;">Cancel</button>' +
@@ -77,6 +82,7 @@ function openSendEmailInputBox(email, sendUrl, orgName) {
   document.getElementById('btnConfirmSendEmail').onclick = function() {
     var subject = document.getElementById('emailModalSubject').value.trim();
     var message = document.getElementById('emailModalMessage').value.trim();
+    var fileInput = document.getElementById('emailModalAttachment');
     if (!message) {
       alert('Please enter a message to send.');
       return;
@@ -88,6 +94,7 @@ function openSendEmailInputBox(email, sendUrl, orgName) {
     var form = document.createElement('form');
     form.method = 'POST';
     form.action = sendUrl;
+    form.enctype = 'multipart/form-data';
 
     var csrf = document.querySelector('[name=csrfmiddlewaretoken]');
     if (csrf) {
@@ -109,6 +116,11 @@ function openSendEmailInputBox(email, sendUrl, orgName) {
     msgInput.name = 'message';
     msgInput.value = message;
     form.appendChild(msgInput);
+
+    if (fileInput && fileInput.files && fileInput.files.length > 0) {
+      fileInput.name = 'attachment';
+      form.appendChild(fileInput);
+    }
 
     document.body.appendChild(form);
     form.submit();

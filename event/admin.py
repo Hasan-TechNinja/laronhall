@@ -130,23 +130,29 @@ class EventAdmin(admin.ModelAdmin):
     def send_email_view(self, request, object_id, *args, **kwargs):
         from django.shortcuts import redirect
         from django.contrib import messages
-        from django.core.mail import send_mail
+        from django.core.mail import EmailMessage
         from django.conf import settings
         
         event = self.get_object(request, object_id)
         if request.method == 'POST' and event and event.creator and event.creator.email:
-            message = request.POST.get('message', '')
+            message = request.POST.get('message', '').strip()
+            subject = request.POST.get('subject', '').strip() or f"Message regarding event {event.name or event.code}"
             if message:
                 try:
                     from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@treatsislandgo.com')
-                    send_mail(
-                        subject=f"Message regarding event {event.name or event.code}",
-                        message=message,
+                    email = EmailMessage(
+                        subject=subject,
+                        body=message,
                         from_email=from_email,
-                        recipient_list=[event.creator.email],
-                        fail_silently=False,
+                        to=[event.creator.email],
                     )
-                    messages.success(request, f"Email sent successfully to {event.creator.email}.")
+                    attachments = request.FILES.getlist('attachment')
+                    for f in attachments:
+                        email.attach(f.name, f.read(), f.content_type)
+
+                    email.send(fail_silently=False)
+                    attach_note = f" with {len(attachments)} attachment(s)" if attachments else ""
+                    messages.success(request, f"Email sent successfully to {event.creator.email}{attach_note}.")
                 except Exception as e:
                     messages.error(request, f"Failed to send email: {str(e)}")
             else:
@@ -288,6 +294,31 @@ class FundraiserAdmin(admin.ModelAdmin):
     search_fields = ('name', 'user__email', 'user__full_name', 'event__name', 'event__code')
     ordering = ('-created_at',)
     list_select_related = ('user', 'event', 'event__type')
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "user":
+            field = super().formfield_for_foreignkey(db_field, request, **kwargs)
+            field.label = "Organizer"
+            field.label_from_instance = lambda obj: (
+                obj.full_name.strip() if (obj.full_name and obj.full_name.strip())
+                else (obj.email if obj.email else (obj.phone if obj.phone else f"User {obj.id}"))
+            )
+            return field
+        if db_field.name == "event":
+            field = super().formfield_for_foreignkey(db_field, request, **kwargs)
+            field.label = "Name of Organization"
+            return field
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+    def formfield_for_dbfield(self, db_field, request, **kwargs):
+        field = super().formfield_for_dbfield(db_field, request, **kwargs)
+        if db_field.name == "event":
+            field.label = "Name of Organization"
+        elif db_field.name == "name":
+            field.label = "Name of Popup Store"
+        elif db_field.name == "description":
+            field.label = "Add Message"
+        return field
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
@@ -487,7 +518,7 @@ class OrganizationAdmin(admin.ModelAdmin):
     def send_email_view(self, request, object_id, *args, **kwargs):
         from django.shortcuts import redirect
         from django.contrib import messages
-        from django.core.mail import send_mail
+        from django.core.mail import EmailMessage
         from django.conf import settings
 
         event = self.get_object(request, object_id)
@@ -497,14 +528,19 @@ class OrganizationAdmin(admin.ModelAdmin):
             if message:
                 try:
                     from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@treatsislandgo.com')
-                    send_mail(
+                    email = EmailMessage(
                         subject=subject,
-                        message=message,
+                        body=message,
                         from_email=from_email,
-                        recipient_list=[event.creator.email],
-                        fail_silently=False,
+                        to=[event.creator.email],
                     )
-                    messages.success(request, f"Email sent successfully to {event.creator.email}.")
+                    attachments = request.FILES.getlist('attachment')
+                    for f in attachments:
+                        email.attach(f.name, f.read(), f.content_type)
+
+                    email.send(fail_silently=False)
+                    attach_note = f" with {len(attachments)} attachment(s)" if attachments else ""
+                    messages.success(request, f"Email sent successfully to {event.creator.email}{attach_note}.")
                 except Exception as e:
                     messages.error(request, f"Failed to send email: {str(e)}")
             else:
