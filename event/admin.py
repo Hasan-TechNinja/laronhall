@@ -53,6 +53,7 @@ class EventAdmin(admin.ModelAdmin):
         'organizer_name', 
         'organizer_email',
         'organizer_phone',
+        'name',
         'code', 
         'start_date', 
         'end_date', 
@@ -65,13 +66,40 @@ class EventAdmin(admin.ModelAdmin):
         'edit_event',
         'delete_event',
         'send_email_action',
-        'is_active'
+        # 'is_active'
     )
     # list_filter = ('is_active', 'type', 'start_date', 'end_date')
     search_fields = ('name', 'code', 'creator__email', 'creator__username', 'creator__full_name')
     ordering = ('id',)
     list_select_related = ('creator', 'type')
     readonly_fields = ('organizer_email', 'organizer_phone')
+    fields = (
+        'creator',
+        'organizer_email',
+        'organizer_phone',
+        'name',
+        'type',
+        'duration',
+        'start_date',
+        'end_date',
+        'code',
+        'estimated_participants',
+        # 'is_active',
+        'min_estimated_earning',
+        'max_estimated_earning',
+        # 'participants',
+        # 'payout_manager',
+        'start_reminder_sent',
+        'twenty_four_hour_reminder_sent',
+        'end_thank_you_sent',
+        'banking_details_reminder_sent',
+    )
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        formfield = super().formfield_for_foreignkey(db_field, request, **kwargs)
+        if db_field.name == 'creator' and formfield:
+            formfield.label_from_instance = lambda obj: obj.full_name.strip() if (obj.full_name and obj.full_name.strip()) else (obj.email or obj.phone or f"User {obj.id}")
+        return formfield
 
     def get_urls(self):
         from django.urls import path
@@ -118,12 +146,12 @@ class EventAdmin(admin.ModelAdmin):
     creator_name = organizer_name
 
     def organizer_email(self, obj):
-        return obj.creator.email if obj.creator and obj.creator.email else "-"
+        return obj.creator.email if obj and obj.creator and obj.creator.email else "-"
     organizer_email.short_description = "Organizer Email"
     organizer_email.admin_order_field = 'creator__email'
 
     def organizer_phone(self, obj):
-        return obj.creator.phone if obj.creator and obj.creator.phone else "-"
+        return obj.creator.phone if obj and obj.creator and obj.creator.phone else "-"
     organizer_phone.short_description = "Organizer Phone"
     organizer_phone.admin_order_field = 'creator__phone'
 

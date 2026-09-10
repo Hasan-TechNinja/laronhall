@@ -62,7 +62,7 @@ class EventCreateInitView(APIView):
             start_date=start_date,
             end_date=end_date,
             code=code,
-            duration="5",
+            duration=5,
             creator=request.user,
             estimated_participants=estimated_participants,
             min_estimated_earning=min_estimated_earning,
@@ -387,7 +387,7 @@ class EventExtendView(APIView):
         if event.creator != request.user:
             return Response({'error': 'Only the creator can extend this event'}, status=status.HTTP_403_FORBIDDEN)
 
-        if event.duration == "7":
+        if event.duration == 7 or str(event.duration) == "7":
             return Response({'error': 'Event has already been extended to the maximum 7 days'}, status=status.HTTP_400_BAD_REQUEST)
         
         # Extend the event
@@ -396,7 +396,7 @@ class EventExtendView(APIView):
         else:
             event.end_date = event.start_date + timedelta(days=7)
             
-        event.duration = "7"
+        event.duration = 7
         event.save()
         
         serializer = EventSerializer(event)
