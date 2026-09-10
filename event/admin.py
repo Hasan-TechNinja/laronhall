@@ -228,8 +228,12 @@ class EventAdmin(admin.ModelAdmin):
     view_stores.short_description = "View Stores"
 
     def sales_report(self, obj):
-        url = reverse('admin:shop_report_changelist') + f'?fundraiser__event__id__exact={obj.id}'
+        try:
+            url = reverse('admin:shop_report_changelist') + f'?fundraiser__event__id__exact={obj.id}'
+        except Exception:
+            url = reverse('admin:shop_order_changelist') + f'?fundraiser__event__id__exact={obj.id}'
         return format_html('<a class="button" href="{}">Sales Report</a>', url)
+
     sales_report.short_description = "Sales Report"
 
     def edit_event(self, obj):
@@ -373,7 +377,11 @@ class FundraiserAdmin(admin.ModelAdmin):
         toggle_label = "Disable" if getattr(obj, 'is_active', True) else "Enable"
         toggle_url = reverse('admin:fundraiser_toggle_active', args=[obj.id])
         
-        supporters_url = reverse('admin:shop_report_changelist') + f'?fundraiser__id__exact={obj.id}'
+        try:
+            supporters_url = reverse('admin:shop_report_changelist') + f'?fundraiser__id__exact={obj.id}'
+        except Exception:
+            supporters_url = reverse('admin:shop_order_changelist') + f'?fundraiser__id__exact={obj.id}'
+
         
         return format_html(
             '<a class="button" href="{}" style="margin:2px;">View Supporters</a> '

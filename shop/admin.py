@@ -2,6 +2,11 @@ from django.contrib import admin
 from . models import Product, Cart, Order, Review, Report, FinanceSummary
 from io import BytesIO
 from datetime import datetime
+import threading
+from django.utils import timezone
+from django.utils.safestring import mark_safe
+from django.utils.html import escape
+from django.db.models import Min, Q
 from import_export import resources, fields
 from import_export.admin import ExportActionModelAdmin
 from import_export.formats import base_formats
@@ -41,9 +46,10 @@ class OrderAdmin(admin.ModelAdmin):
     list_select_related = ('user', 'product', 'fundraiser')
 
     def lookup_allowed(self, lookup, value, request=None):
-        if lookup in ('fundraiser__event__id__exact', 'fundraiser__event__id'):
+        if lookup in ('fundraiser__event__id__exact', 'fundraiser__event__id', 'fundraiser__id__exact', 'fundraiser__id'):
             return True
         return super().lookup_allowed(lookup, value, request)
+
 
 
 
@@ -107,6 +113,11 @@ class PDF(base_formats.Format):
             textColor=colors.white,
             alignment=0
         )
+        header_center_style = ParagraphStyle(
+            'HeaderCenterStyle',
+            parent=header_style,
+            alignment=1
+        )
         cell_style = ParagraphStyle(
             'CellStyle',
             fontName='Helvetica',
@@ -115,24 +126,52 @@ class PDF(base_formats.Format):
             textColor=colors.HexColor('#222222'),
             alignment=0
         )
+        cell_center_style = ParagraphStyle(
+            'CellCenterStyle',
+            parent=cell_style,
+            alignment=1
+        )
 
         table_data = []
         if headers:
-            table_data.append([Paragraph(str(h or ''), header_style) for h in headers])
+            header_cells = []
+            for h in headers:
+                style = header_center_style if str(h).strip() == '#' else header_style
+                header_cells.append(Paragraph(str(h or ''), style))
+            table_data.append(header_cells)
 
         for row in dataset:
             data_row = []
-            for cell in row:
+            for col_idx, cell in enumerate(row):
                 cell_text = str(cell) if cell is not None else ''
-                data_row.append(Paragraph(cell_text, cell_style))
+                cell_text = cell_text.replace('\n', '<br/>')
+                style = cell_center_style if (headers and col_idx < len(headers) and str(headers[col_idx]).strip() == '#') else cell_style
+                data_row.append(Paragraph(cell_text, style))
             table_data.append(data_row)
 
+        col_widths = None
+        if headers:
+            col_map = {
+                '#': 28,
+                'Supporter name': 90,
+                'Purchase date': 72,
+                'Items purchased': 245,
+                'Candy price': 55,
+                'Due Organizer': 68,
+                'Due Treats': 64,
+                'Popup Name': 130,
+            }
+            if all(h in col_map for h in headers):
+                col_widths = [col_map[h] for h in headers]
+            elif '#' in headers and 'Items purchased' in headers:
+                col_widths = [28 if h == '#' else (245 if h == 'Items purchased' else None) for h in headers]
+
         if table_data:
-            t = Table(table_data, repeatRows=1)
-            t.setStyle(TableStyle([
+            t = Table(table_data, colWidths=col_widths, repeatRows=1)
+            t_style = [
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1b4332')),
                 ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
                 ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e0e0e0')),
                 ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#1b4332')),
                 ('TOPPADDING', (0, 0), (-1, -1), 5),
@@ -140,7 +179,11 @@ class PDF(base_formats.Format):
                 ('LEFTPADDING', (0, 0), (-1, -1), 4),
                 ('RIGHTPADDING', (0, 0), (-1, -1), 4),
                 ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f9f9f9')]),
-            ]))
+            ]
+            if headers and '#' in headers:
+                num_idx = headers.index('#')
+                t_style.append(('ALIGN', (num_idx, 0), (num_idx, -1), 'CENTER'))
+            t.setStyle(TableStyle(t_style))
             elements.append(t)
 
         doc.build(elements)
@@ -151,131 +194,249 @@ if PDF not in base_formats.DEFAULT_FORMATS:
     base_formats.DEFAULT_FORMATS.append(PDF)
 
 class ReportResource(resources.ModelResource):
-    order_number = fields.Field(attribute='id', column_name='Order Number')
-    supporter = fields.Field(column_name='Supporter')
-    purchase_date = fields.Field(column_name='Purchase Date')
-    popup_store = fields.Field(column_name='Popup Store')
-    order_total = fields.Field(column_name='Order Total')
-    items_qty = fields.Field(column_name='Items / Qty')
-    item_price = fields.Field(column_name='Item Price')
-    org_share = fields.Field(column_name='Org Share')
-    treats_share = fields.Field(column_name='Treats Share')
-    status = fields.Field(column_name='Status')
+    report_number = fields.Field(column_name='#')
+    supporter_name = fields.Field(column_name='Supporter name')
+    purchase_date = fields.Field(column_name='Purchase date')
+    items_purchased = fields.Field(column_name='Items purchased')
+    candy_price = fields.Field(column_name='Candy price')
+    due_organizer = fields.Field(column_name='Due Organizer')
+    due_treats = fields.Field(column_name='Due Treats')
+    popup_name = fields.Field(column_name='Popup Name')
 
     class Meta:
         model = Report
-        fields = ('order_number', 'supporter', 'purchase_date', 'popup_store', 'order_total', 'items_qty', 'item_price', 'org_share', 'treats_share', 'status')
+        fields = (
+            'report_number',
+            'supporter_name',
+            'purchase_date',
+            'items_purchased',
+            'candy_price',
+            'due_organizer',
+            'due_treats',
+            'popup_name',
+        )
         export_order = fields
 
-    def dehydrate_supporter(self, obj):
-        name = obj.name or (getattr(obj.user, 'full_name', '') if obj.user else '')
-        email = obj.email or (getattr(obj.user, 'email', '') if obj.user else '')
-        return f"{name} ({email})"
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._counter = 0
+
+    def before_export(self, queryset, *args, **kwargs):
+        self._counter = 0
+        return super().before_export(queryset, *args, **kwargs)
+
+    def get_items(self, obj):
+        if hasattr(obj, '_cached_items'):
+            return obj._cached_items
+        if obj.stripe_session_id:
+            from shop.models import Order
+            items = list(Order.objects.filter(stripe_session_id=obj.stripe_session_id).select_related('product', 'fundraiser', 'fundraiser__user', 'user'))
+        else:
+            items = [obj]
+        obj._cached_items = items
+        return items
+
+    def dehydrate_report_number(self, obj):
+        if not hasattr(self, '_counter'):
+            self._counter = 0
+        self._counter += 1
+        return self._counter
+
+    def dehydrate_supporter_name(self, obj):
+        name = (obj.name or '').strip()
+        if not name and obj.user:
+            name = (obj.user.full_name or '').strip()
+        if not name:
+            name = (obj.email or '').strip()
+        return name or "-"
 
     def dehydrate_purchase_date(self, obj):
-        return obj.created_at.strftime("%b %d, %Y") if obj.created_at else ""
+        if not obj.created_at:
+            return ""
+        dt = timezone.localtime(obj.created_at) if timezone.is_aware(obj.created_at) else obj.created_at
+        return f"{dt.month}/{dt.day}/{dt.strftime('%y')} {dt.hour}:{dt.strftime('%M')}"
 
-    def dehydrate_popup_store(self, obj):
-        return obj.fundraiser.name if obj.fundraiser else (f"{obj.fundraiser.user.email}'s Store" if obj.fundraiser and obj.fundraiser.user else "-")
+    def dehydrate_items_purchased(self, obj):
+        items = self.get_items(obj)
+        lines = []
+        for item in items:
+            if item.product:
+                lines.append(f"{item.product.name} x {item.quantity}")
+        return "\n".join(lines)
 
-    def dehydrate_order_total(self, obj):
-        try:
-            return float(obj.product.price) * obj.quantity + float(obj.delivery_charge)
-        except Exception:
-            return 0.00
+    def dehydrate_candy_price(self, obj):
+        items = self.get_items(obj)
+        total = sum(float(item.product.price) * item.quantity for item in items if item.product)
+        if float(total).is_integer():
+            return f"{int(total)}"
+        return f"{total:.2f}"
 
-    def dehydrate_items_qty(self, obj):
-        return f"{obj.product.name} x{obj.quantity}" if obj.product else ""
+    def dehydrate_due_organizer(self, obj):
+        items = self.get_items(obj)
+        total = sum(float(item.product.price) * item.quantity for item in items if item.product)
+        due_org = total * 0.5
+        return f"$ {due_org:.2f}"
 
-    def dehydrate_item_price(self, obj):
-        return obj.product.price if obj.product else 0.00
+    def dehydrate_due_treats(self, obj):
+        items = self.get_items(obj)
+        total = sum(float(item.product.price) * item.quantity for item in items if item.product)
+        due = total * 0.5
+        return f"$ {due:.2f}"
 
-    def dehydrate_org_share(self, obj):
-        try:
-            return (float(obj.product.price) * obj.quantity) * 0.5
-        except Exception:
-            return 0.00
+    def dehydrate_popup_name(self, obj):
+        if not obj.fundraiser:
+            return "-"
+        if obj.fundraiser.name and obj.fundraiser.name.strip():
+            return obj.fundraiser.name.strip()
+        if obj.fundraiser.user:
+            u_name = obj.fundraiser.user.full_name.strip() if obj.fundraiser.user.full_name else ""
+            if u_name:
+                return f"{u_name}'s Store"
+            if obj.fundraiser.user.email:
+                return f"{obj.fundraiser.user.email}'s Store"
+        return f"Store {obj.fundraiser.id}"
 
-    def dehydrate_treats_share(self, obj):
-        try:
-            return (float(obj.product.price) * obj.quantity) * 0.5
-        except Exception:
-            return 0.00
 
-    def dehydrate_status(self, obj):
-        paid = "Paid" if obj.is_paid else "Unpaid"
-        status = obj.shipment_status.title() if obj.shipment_status else "Unshipped"
-        return f"{paid} / {status}"
+_report_state = threading.local()
+
 
 class ReportAdmin(ExportActionModelAdmin, admin.ModelAdmin):
     resource_class = ReportResource
     export_formats = (base_formats.CSV, base_formats.XLSX, base_formats.TSV, base_formats.JSON, base_formats.HTML, PDF)
     formats = export_formats
-    list_display = ('id', 'supporter_display', 'purchase_date_display', 'popup_store_display', 'order_total_display', 'items_qty_display', 'item_price_display', 'org_share_display', 'treats_share_display', 'status_display')
-    list_filter = ('fundraiser__event','created_at', 'is_paid', 'shipment_status')
+    list_display = (
+        'report_number',
+        'supporter_name',
+        'purchase_date',
+        'items_purchased',
+        'candy_price',
+        'due_organizer',
+        'due_treats',
+        'popup_name',
+    )
+    list_display_links = ('report_number', 'supporter_name')
+    list_filter = ('fundraiser__event', 'created_at', 'is_paid')
     search_fields = ('user__email', 'user__phone', 'email', 'name', 'fundraiser__name', 'fundraiser__event__name')
-    list_select_related = ('user', 'product', 'fundraiser', 'fundraiser__event')
+    list_select_related = ('user', 'product', 'fundraiser', 'fundraiser__event', 'fundraiser__user')
     ordering = ('-created_at',)
 
+    def has_module_permission(self, request):
+        return False
+
     def lookup_allowed(self, lookup, value, request=None):
-        if lookup in ('fundraiser__id__exact', 'fundraiser__id'):
+        if lookup in ('fundraiser__event__id__exact', 'fundraiser__event__id', 'fundraiser__id__exact', 'fundraiser__id'):
             return True
         return super().lookup_allowed(lookup, value, request)
 
-    def supporter_display(self, obj):
-        name = obj.name or (getattr(obj.user, 'full_name', '') if obj.user else '')
-        email = obj.email or (getattr(obj.user, 'email', '') if obj.user else '')
-        return f"{name} ({email})"
-    supporter_display.short_description = "Supporter"
-
-    def purchase_date_display(self, obj):
-        return obj.created_at.strftime("%b %d, %Y") if obj.created_at else ""
-    purchase_date_display.short_description = "Purchase Date"
-    purchase_date_display.admin_order_field = 'created_at'
-
-    def popup_store_display(self, obj):
-        return obj.fundraiser.name if obj.fundraiser and obj.fundraiser.name else (f"{obj.fundraiser.user.email}'s Store" if obj.fundraiser and obj.fundraiser.user else "-")
-    popup_store_display.short_description = "Popup Store"
-
-    def get_order_total(self, obj):
+    def changelist_view(self, request, extra_context=None):
         try:
-            return float(obj.product.price) * obj.quantity + float(obj.delivery_charge)
-        except Exception:
-            return 0.00
+            page = int(request.GET.get('p', 0))
+        except (ValueError, TypeError):
+            page = 0
+        _report_state.row_counter = page * self.list_per_page
+        return super().changelist_view(request, extra_context=extra_context)
 
-    def order_total_display(self, obj):
-        return f"${self.get_order_total(obj):.2f}"
-    order_total_display.short_description = "Order Total"
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        session_rep_ids = (
+            qs.filter(stripe_session_id__isnull=False)
+            .exclude(stripe_session_id='')
+            .order_by()
+            .values('stripe_session_id')
+            .annotate(rep_id=Min('id'))
+            .values_list('rep_id', flat=True)
+        )
+        no_session_ids = (
+            qs.filter(Q(stripe_session_id__isnull=True) | Q(stripe_session_id=''))
+            .order_by()
+            .values_list('id', flat=True)
+        )
+        all_rep_ids = list(session_rep_ids) + list(no_session_ids)
+        return qs.filter(id__in=all_rep_ids)
 
-    def items_qty_display(self, obj):
-        return f"{obj.product.name} x{obj.quantity}" if obj.product else ""
-    items_qty_display.short_description = "Items / Qty"
+    def get_items(self, obj):
+        if hasattr(obj, '_cached_items'):
+            return obj._cached_items
+        if obj.stripe_session_id:
+            from shop.models import Order
+            items = list(Order.objects.filter(stripe_session_id=obj.stripe_session_id).select_related('product', 'fundraiser', 'fundraiser__user', 'user'))
+        else:
+            items = [obj]
+        obj._cached_items = items
+        return items
 
-    def item_price_display(self, obj):
-        return f"${float(obj.product.price):.2f}" if obj.product else "$0.00"
-    item_price_display.short_description = "Item Price"
+    def report_number(self, obj):
+        counter = getattr(_report_state, 'row_counter', None)
+        if counter is not None:
+            _report_state.row_counter = counter + 1
+            return counter + 1
+        return obj.id
+    report_number.short_description = "#"
+    report_number.admin_order_field = 'id'
 
-    def org_share_display(self, obj):
-        try:
-            val = (float(obj.product.price) * obj.quantity) * 0.5
-            return f"${val:.2f}"
-        except Exception:
-            return "$0.00"
-    org_share_display.short_description = "Org Share"
+    def supporter_name(self, obj):
+        name = (obj.name or '').strip()
+        if not name and obj.user:
+            name = (obj.user.full_name or '').strip()
+        if not name:
+            name = (obj.email or '').strip()
+        return name or "-"
+    supporter_name.short_description = "Supporter name"
+    supporter_name.admin_order_field = 'name'
 
-    def treats_share_display(self, obj):
-        try:
-            val = (float(obj.product.price) * obj.quantity) * 0.5
-            return f"${val:.2f}"
-        except Exception:
-            return "$0.00"
-    treats_share_display.short_description = "Treats Share"
+    def purchase_date(self, obj):
+        if not obj.created_at:
+            return ""
+        dt = timezone.localtime(obj.created_at) if timezone.is_aware(obj.created_at) else obj.created_at
+        return f"{dt.month}/{dt.day}/{dt.strftime('%y')} {dt.hour}:{dt.strftime('%M')}"
+    purchase_date.short_description = "Purchase date"
+    purchase_date.admin_order_field = 'created_at'
 
-    def status_display(self, obj):
-        paid = "Paid" if obj.is_paid else "Unpaid"
-        status = obj.shipment_status.title() if obj.shipment_status else "Unshipped"
-        return f"{paid} / {status}"
-    status_display.short_description = "Status"
+    def items_purchased(self, obj):
+        items = self.get_items(obj)
+        lines = []
+        for item in items:
+            if item.product:
+                lines.append(f"{escape(item.product.name)} x {item.quantity}")
+        return mark_safe("<br>".join(lines))
+    items_purchased.short_description = "Items purchased"
+
+    def candy_price(self, obj):
+        items = self.get_items(obj)
+        total = sum(float(item.product.price) * item.quantity for item in items if item.product)
+        if float(total).is_integer():
+            return f"{int(total)}"
+        return f"{total:.2f}"
+    candy_price.short_description = "Candy price"
+
+    def due_organizer(self, obj):
+        items = self.get_items(obj)
+        total = sum(float(item.product.price) * item.quantity for item in items if item.product)
+        due_org = total * 0.5
+        return f"$ {due_org:.2f}"
+    due_organizer.short_description = "Due Organizer"
+
+    def due_treats(self, obj):
+        items = self.get_items(obj)
+        total = sum(float(item.product.price) * item.quantity for item in items if item.product)
+        due = total * 0.5
+        return f"$ {due:.2f}"
+    due_treats.short_description = "Due Treats"
+
+    def popup_name(self, obj):
+        if not obj.fundraiser:
+            return "-"
+        if obj.fundraiser.name and obj.fundraiser.name.strip():
+            return obj.fundraiser.name.strip()
+        if obj.fundraiser.user:
+            u_name = obj.fundraiser.user.full_name.strip() if obj.fundraiser.user.full_name else ""
+            if u_name:
+                return f"{u_name}'s Store"
+            if obj.fundraiser.user.email:
+                return f"{obj.fundraiser.user.email}'s Store"
+        return f"Store {obj.fundraiser.id}"
+    popup_name.short_description = "Popup Name"
+    popup_name.admin_order_field = 'fundraiser__name'
 
 
 admin.site.register(Product, ProductAdmin)
@@ -283,6 +444,8 @@ admin.site.register(Product, ProductAdmin)
 admin.site.register(Order, OrderAdmin)
 admin.site.register(Report, ReportAdmin)
 # admin.site.register(FinanceSummary, ReportAdmin)
+
+
 
 class ReviewAdmin(admin.ModelAdmin):
     list_display = ('name', 'rating', 'created_at')
