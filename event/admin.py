@@ -50,7 +50,7 @@ class FundraiserInline(admin.TabularInline):
 class EventAdmin(admin.ModelAdmin):
     list_display = (
         'id', 
-        'creator', 
+        'organizer_name', 
         'organizer_email',
         'organizer_phone',
         'code', 
@@ -64,7 +64,6 @@ class EventAdmin(admin.ModelAdmin):
         'sales_report', 
         'edit_event',
         'delete_event',
-        'relaunch_event',
         'send_email_action',
         'is_active'
     )
@@ -78,7 +77,6 @@ class EventAdmin(admin.ModelAdmin):
         from django.urls import path
         urls = super().get_urls()
         custom_urls = [
-            path('<path:object_id>/relaunch/', self.admin_site.admin_view(self.relaunch_view), name='event_event_relaunch'),
             path('<path:object_id>/send-email/', self.admin_site.admin_view(self.send_email_view), name='event_event_send_email'),
         ]
         return custom_urls + urls
@@ -109,21 +107,15 @@ class EventAdmin(admin.ModelAdmin):
                 messages.warning(request, "Email message was empty.")
         return redirect(reverse('admin:event_event_changelist'))
 
-    def relaunch_view(self, request, object_id, *args, **kwargs):
-        from django.shortcuts import redirect
-        from django.contrib import messages
-        event = self.get_object(request, object_id)
-        if event:
-            event.is_active = True
-            event.save()
-            messages.success(request, f"Event {event.name or event.code} has been relaunched (set to active).")
-        return redirect(reverse('admin:event_event_changelist'))
 
-    def creator_name(self, obj):
-        if obj.creator:
-            return obj.creator.full_name or obj.creator.phone or obj.creator.email
+    def organizer_name(self, obj):
+        if obj.creator and obj.creator.full_name and obj.creator.full_name.strip():
+            return obj.creator.full_name.strip()
         return "-"
-    creator_name.short_description = "Creator Name"
+    organizer_name.short_description = "Organizer"
+    organizer_name.admin_order_field = 'creator__full_name'
+
+    creator_name = organizer_name
 
     def organizer_email(self, obj):
         return obj.creator.email if obj.creator and obj.creator.email else "-"
@@ -144,7 +136,7 @@ class EventAdmin(admin.ModelAdmin):
             elif obj.start_date <= now <= obj.end_date:
                 return "Ongoing"
             else:
-                return "Completed"
+                return "Ended"
         elif obj.start_date:
             if obj.start_date > now:
                 return "Upcoming"
@@ -204,10 +196,6 @@ class EventAdmin(admin.ModelAdmin):
         return format_html('<a class="button" href="{}">Delete</a>', url)
     delete_event.short_description = "Delete"
 
-    def relaunch_event(self, obj):
-        url = reverse('admin:event_event_relaunch', args=[obj.id])
-        return format_html('<a class="button" href="{}">Relaunch</a>', url)
-    relaunch_event.short_description = "Relaunch"
 
     def send_email_action(self, obj):
         if not obj.creator or not obj.creator.email:
