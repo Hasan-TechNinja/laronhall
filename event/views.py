@@ -67,7 +67,8 @@ class EventCreateInitView(APIView):
             estimated_participants=estimated_participants,
             min_estimated_earning=min_estimated_earning,
             max_estimated_earning=max_estimated_earning,
-            payout_manager=payout_manager
+            payout_manager=payout_manager,
+            event_created=True,
         )
         event.participants.add(request.user)
         Fundraiser.objects.get_or_create(user=request.user, event=event)
@@ -78,6 +79,9 @@ class EventCreateInitView(APIView):
                 email=event.creator.email,
                 organizer_name=event.creator.full_name or event.creator.phone
             )
+        
+        from authentication.emails import send_event_created_admin_email
+        send_event_created_admin_email(event)
         
         serializer = EventSerializer(event)
         return Response({'message': 'Event initialized', 'event': serializer.data}, status=status.HTTP_201_CREATED)
@@ -285,19 +289,25 @@ class FundraiserUpdateNameView(APIView):
         fundraiser.name = name
         fundraiser.save()
 
-        # Send push notification if updating for the first time (creating shop)
-        if is_first_time and fundraiser.event.creator and fundraiser.event.creator != request.user:
-            send_push_notification(
-                user=fundraiser.event.creator,
-                title="New Shop Created",
-                body=f"A new shop '{name}' has been created in your event '{fundraiser.event.name}'.",
-                data={"event_id": str(fundraiser.event.id), "fundraiser_id": str(fundraiser.id), "type": "shop_created"}
-            )
+        # Send push notification and emails if updating for the first time (creating shop)
+        if is_first_time:
+            fundraiser.event.popup_store_created = True
+            fundraiser.event.save(update_fields=['popup_store_created'])
+
+            member_name = request.user.full_name or request.user.phone or "Supporter"
+            org_name = (fundraiser.event.creator.full_name or fundraiser.event.creator.phone) if fundraiser.event.creator else "Organizer"
+            store_url = f"https://treatsislandgo.com/store/{fundraiser.id}"
+
+            if fundraiser.event.creator and fundraiser.event.creator != request.user:
+                send_push_notification(
+                    user=fundraiser.event.creator,
+                    title="New Shop Created",
+                    body=f"A new shop '{name}' has been created in your event '{fundraiser.event.name}'.",
+                    data={"event_id": str(fundraiser.event.id), "fundraiser_id": str(fundraiser.id), "type": "shop_created"}
+                )
             
-            if fundraiser.event.creator.email:
-                org_name = fundraiser.event.creator.full_name or fundraiser.event.creator.phone
-                member_name = request.user.full_name or request.user.phone
-                
+            # Send alert email to Event Creator (Organizer)
+            if fundraiser.event.creator and fundraiser.event.creator.email:
                 from authentication.emails import send_new_popup_alert_email
                 send_new_popup_alert_email(
                     email=fundraiser.event.creator.email,
@@ -305,6 +315,21 @@ class FundraiserUpdateNameView(APIView):
                     member_name=member_name,
                     popup_store_name=name
                 )
+
+            # Send confirmation email to Store Creator (Member)
+            if request.user.email:
+                from authentication.emails import send_popup_store_created_member_email
+                send_popup_store_created_member_email(
+                    email=request.user.email,
+                    member_name=member_name,
+                    popup_store_name=name,
+                    event_name=fundraiser.event.name or fundraiser.event.code,
+                    store_url=store_url
+                )
+
+            # Send alert email to Admin
+            from authentication.emails import send_popup_store_created_admin_email
+            send_popup_store_created_admin_email(fundraiser)
 
         serializer = FundraiserSerializer(fundraiser)
         return Response({'message': 'Name updated', 'fundraiser': serializer.data}, status=status.HTTP_200_OK)

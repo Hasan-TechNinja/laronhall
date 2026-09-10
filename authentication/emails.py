@@ -720,3 +720,378 @@ Treats Island Candy Team
     except Exception as e:
         print(f"[EMAIL ERROR] Failed to send order confirmation to {email}: {e}")
 
+
+def send_event_created_admin_email(event):
+    """
+    Sends a notification email to the Admin when a new event is created.
+    """
+    admin_email = getattr(settings, 'ADMIN_EMAIL', 'hasantechninja@gmail.com')
+    subject = f"New Event Created: {event.name or event.code}"
+    
+    organizer_name = (event.creator.full_name or event.creator.phone) if event.creator else "Unknown"
+    organizer_email = event.creator.email if event.creator else "-"
+    organizer_phone = event.creator.phone if event.creator else "-"
+    org_type = event.type.name if event.type else "-"
+    start_date_str = event.start_date.strftime("%B %d, %Y, %I:%M %p") if event.start_date else "-"
+    end_date_str = event.end_date.strftime("%B %d, %Y, %I:%M %p") if event.end_date else "-"
+    duration_str = f"{event.duration} Days" if event.duration else "-"
+    
+    text_content = f"""Hello Admin,
+
+A new event has been created on Treats Island!
+
+Event Details:
+- Name of Organization: {event.name or '-'}
+- Organization Type: {org_type}
+- Event Code: {event.code or '-'}
+- Duration: {duration_str}
+- Start Date: {start_date_str}
+- End Date: {end_date_str}
+
+Organizer Details:
+- Name: {organizer_name}
+- Email: {organizer_email}
+- Phone: {organizer_phone}
+
+Best Regards,
+Treats Island GO Virtual Fundraising
+"""
+    html_content = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Event Created</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #334155;">
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f8fafc; padding: 40px 0;">
+        <tr>
+            <td align="center">
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); overflow: hidden;">
+                    <tr>
+                        <td align="center" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 30px 20px;">
+                            <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 800;">New Event Created</h1>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 30px;">
+                            <h2 style="margin-top: 0; margin-bottom: 16px; font-size: 18px; color: #1e293b;">Hello Admin,</h2>
+                            <p style="margin: 0 0 20px 0; font-size: 15px; line-height: 22px; color: #475569;">
+                                A new fundraising event has been created on the platform.
+                            </p>
+                            
+                            <div style="background-color: #f8fafc; border-radius: 8px; padding: 20px; margin-bottom: 24px; border: 1px solid #e2e8f0;">
+                                <h3 style="margin: 0 0 12px 0; font-size: 16px; color: #059669; font-weight: 700;">Event Information</h3>
+                                <table width="100%" cellpadding="6" cellspacing="0" style="font-size: 14px; color: #334155;">
+                                    <tr>
+                                        <td style="font-weight: 600; width: 40%;">Name of Organization:</td>
+                                        <td>{event.name or '-'}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight: 600;">Organization Type:</td>
+                                        <td>{org_type}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight: 600;">Event Code:</td>
+                                        <td><strong>{event.code or '-'}</strong></td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight: 600;">Duration:</td>
+                                        <td>{duration_str}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight: 600;">Start Date:</td>
+                                        <td>{start_date_str}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight: 600;">End Date:</td>
+                                        <td>{end_date_str}</td>
+                                    </tr>
+                                </table>
+                            </div>
+
+                            <div style="background-color: #f8fafc; border-radius: 8px; padding: 20px; margin-bottom: 24px; border: 1px solid #e2e8f0;">
+                                <h3 style="margin: 0 0 12px 0; font-size: 16px; color: #059669; font-weight: 700;">Organizer Details</h3>
+                                <table width="100%" cellpadding="6" cellspacing="0" style="font-size: 14px; color: #334155;">
+                                    <tr>
+                                        <td style="font-weight: 600; width: 40%;">Name:</td>
+                                        <td>{organizer_name}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight: 600;">Email:</td>
+                                        <td>{organizer_email}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight: 600;">Phone:</td>
+                                        <td>{organizer_phone}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                            
+                            <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 24px 0;">
+                            
+                            <p style="margin: 0; font-size: 14px; line-height: 20px; color: #64748b;">
+                                Best Regards,<br>
+                                <strong style="color: #059669;">Treats Island GO Virtual Fundraising</strong>
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+"""
+    try:
+        from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'Treats Island <hasantechninja@gmail.com>')
+        send_mail(
+            subject=subject,
+            message=text_content,
+            from_email=from_email,
+            recipient_list=[admin_email],
+            html_message=html_content,
+            fail_silently=False,
+        )
+    except Exception as e:
+        print(f"[EMAIL ERROR] Failed to send event created admin email: {e}")
+
+
+def send_popup_store_created_admin_email(fundraiser):
+    """
+    Sends a notification email to the Admin when a new pop-up store is created.
+    """
+    admin_email = getattr(settings, 'ADMIN_EMAIL', 'hasantechninja@gmail.com')
+    store_name = fundraiser.name or f"Store #{fundraiser.id}"
+    subject = f"New Pop-Up Store Created: {store_name}"
+
+    member_name = (fundraiser.user.full_name or fundraiser.user.phone) if fundraiser.user else "Unknown"
+    member_email = fundraiser.user.email if fundraiser.user else "-"
+    member_phone = fundraiser.user.phone if fundraiser.user else "-"
+    
+    event = fundraiser.event
+    event_name = event.name or event.code if event else "-"
+    event_code = event.code if event else "-"
+    organizer_name = (event.creator.full_name or event.creator.phone) if event and event.creator else "-"
+    organizer_email = event.creator.email if event and event.creator else "-"
+    goal_str = f"${fundraiser.goal:,.2f}" if fundraiser.goal else "$0.00"
+    store_url = f"https://treatsislandgo.com/store/{fundraiser.id}"
+
+    text_content = f"""Hello Admin,
+
+A new pop-up store '{store_name}' has been created!
+
+Store Details:
+- Store Name: {store_name}
+- Store Goal: {goal_str}
+- Store URL: {store_url}
+
+Store Creator (Member):
+- Name: {member_name}
+- Email: {member_email}
+- Phone: {member_phone}
+
+Event Details:
+- Event: {event_name}
+- Event Code: {event_code}
+- Organizer: {organizer_name} ({organizer_email})
+
+Best Regards,
+Treats Island GO Virtual Fundraising
+"""
+    html_content = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Pop-Up Store Created</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #334155;">
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f8fafc; padding: 40px 0;">
+        <tr>
+            <td align="center">
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); overflow: hidden;">
+                    <tr>
+                        <td align="center" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 30px 20px;">
+                            <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 800;">New Pop-Up Store Created</h1>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 30px;">
+                            <h2 style="margin-top: 0; margin-bottom: 16px; font-size: 18px; color: #1e293b;">Hello Admin,</h2>
+                            <p style="margin: 0 0 20px 0; font-size: 15px; line-height: 22px; color: #475569;">
+                                A new pop-up store <strong>{store_name}</strong> has been created.
+                            </p>
+                            
+                            <div style="background-color: #f8fafc; border-radius: 8px; padding: 20px; margin-bottom: 24px; border: 1px solid #e2e8f0;">
+                                <h3 style="margin: 0 0 12px 0; font-size: 16px; color: #d97706; font-weight: 700;">Store Information</h3>
+                                <table width="100%" cellpadding="6" cellspacing="0" style="font-size: 14px; color: #334155;">
+                                    <tr>
+                                        <td style="font-weight: 600; width: 40%;">Store Name:</td>
+                                        <td>{store_name}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight: 600;">Fundraising Goal:</td>
+                                        <td>{goal_str}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight: 600;">Store Link:</td>
+                                        <td><a href="{store_url}" style="color: #d97706;">{store_url}</a></td>
+                                    </tr>
+                                </table>
+                            </div>
+
+                            <div style="background-color: #f8fafc; border-radius: 8px; padding: 20px; margin-bottom: 24px; border: 1px solid #e2e8f0;">
+                                <h3 style="margin: 0 0 12px 0; font-size: 16px; color: #d97706; font-weight: 700;">Store Creator (Participant)</h3>
+                                <table width="100%" cellpadding="6" cellspacing="0" style="font-size: 14px; color: #334155;">
+                                    <tr>
+                                        <td style="font-weight: 600; width: 40%;">Name:</td>
+                                        <td>{member_name}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight: 600;">Email:</td>
+                                        <td>{member_email}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight: 600;">Phone:</td>
+                                        <td>{member_phone}</td>
+                                    </tr>
+                                </table>
+                            </div>
+
+                            <div style="background-color: #f8fafc; border-radius: 8px; padding: 20px; margin-bottom: 24px; border: 1px solid #e2e8f0;">
+                                <h3 style="margin: 0 0 12px 0; font-size: 16px; color: #d97706; font-weight: 700;">Associated Event</h3>
+                                <table width="100%" cellpadding="6" cellspacing="0" style="font-size: 14px; color: #334155;">
+                                    <tr>
+                                        <td style="font-weight: 600; width: 40%;">Event Name:</td>
+                                        <td>{event_name}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight: 600;">Event Code:</td>
+                                        <td>{event_code}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight: 600;">Organizer:</td>
+                                        <td>{organizer_name} ({organizer_email})</td>
+                                    </tr>
+                                </table>
+                            </div>
+                            
+                            <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 24px 0;">
+                            
+                            <p style="margin: 0; font-size: 14px; line-height: 20px; color: #64748b;">
+                                Best Regards,<br>
+                                <strong style="color: #d97706;">Treats Island GO Virtual Fundraising</strong>
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+"""
+    try:
+        from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'Treats Island <hasantechninja@gmail.com>')
+        send_mail(
+            subject=subject,
+            message=text_content,
+            from_email=from_email,
+            recipient_list=[admin_email],
+            html_message=html_content,
+            fail_silently=False,
+        )
+    except Exception as e:
+        print(f"[EMAIL ERROR] Failed to send popup store created admin email: {e}")
+
+
+def send_popup_store_created_member_email(email, member_name, popup_store_name, event_name, store_url):
+    """
+    Sends a confirmation email to the participant/member when their pop-up store is created.
+    """
+    subject = f"Your Pop-Up Store '{popup_store_name}' is Ready! - Treats Island Candy"
+
+    text_content = f"""Dear {member_name},
+
+Congratulations! Your pop-up store '{popup_store_name}' for event '{event_name}' is now live and ready to take orders!
+
+Here is your store link to share with supporters, friends, and family:
+{store_url}
+
+Tips for success:
+- Share your link on social media, text messages, and email.
+- Ask family and friends to spread the word.
+- Every order helps your team reach its fundraising goal!
+
+Thank you for participating and supporting {event_name}!
+
+Best Regards,
+Treats Island GO Virtual Fundraising
+"""
+    html_content = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your Pop-Up Store is Live!</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #334155;">
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f8fafc; padding: 40px 0;">
+        <tr>
+            <td align="center">
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); overflow: hidden;">
+                    <tr>
+                        <td align="center" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 35px 20px;">
+                            <h1 style="margin: 0; color: #ffffff; font-size: 26px; font-weight: 800;">Your Pop-Up Store is Live!</h1>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 35px 30px;">
+                            <h2 style="margin-top: 0; margin-bottom: 16px; font-size: 20px; color: #1e293b;">Dear {member_name},</h2>
+                            <p style="margin: 0 0 16px 0; font-size: 16px; line-height: 24px; color: #475569;">
+                                Congratulations! Your pop-up store <strong>{popup_store_name}</strong> for event <strong>{event_name}</strong> is now live and ready to take orders!
+                            </p>
+                            
+                            <div style="background-color: #ecfdf5; border-radius: 8px; padding: 20px; margin: 24px 0; border: 1px solid #a7f3d0; text-align: center;">
+                                <p style="margin: 0 0 10px 0; font-size: 14px; color: #065f46; font-weight: 600;">Your Pop-Up Store Link:</p>
+                                <a href="{store_url}" style="display: inline-block; padding: 12px 24px; background-color: #059669; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 700; font-size: 15px;">Visit Your Store</a>
+                                <p style="margin: 10px 0 0 0; font-size: 13px; color: #047857; word-break: break-all;">{store_url}</p>
+                            </div>
+                            
+                            <h3 style="margin: 20px 0 10px 0; font-size: 16px; color: #1e293b;">Tips for Success:</h3>
+                            <ul style="margin: 0 0 20px 0; padding-left: 20px; font-size: 15px; line-height: 22px; color: #475569;">
+                                <li>Share your link via social media, text messages, and email.</li>
+                                <li>Ask family and friends to share your store with their network.</li>
+                                <li>Every delicious candy order brings your team closer to its goal!</li>
+                            </ul>
+                            
+                            <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 24px 0;">
+                            
+                            <p style="margin: 0; font-size: 15px; line-height: 22px; color: #475569;">
+                                Best Regards,<br>
+                                <strong style="color: #059669;">Treats Island GO Virtual Fundraising</strong>
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+"""
+    try:
+        from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'Treats Island <hasantechninja@gmail.com>')
+        send_mail(
+            subject=subject,
+            message=text_content,
+            from_email=from_email,
+            recipient_list=[email],
+            html_message=html_content,
+            fail_silently=False,
+        )
+    except Exception as e:
+        print(f"[EMAIL ERROR] Failed to send popup store created member email to {email}: {e}")
+
+

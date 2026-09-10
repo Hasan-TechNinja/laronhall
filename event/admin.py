@@ -4,17 +4,17 @@ from .models import OrganizationType, Event, Fundraiser
 # Register your models here.
 #code update from server
 
-@admin.register(OrganizationType)
-class OrganizationTypeAdmin(admin.ModelAdmin):
-    list_display = ('name', 'created_at', 'updated_at')
-    search_fields = ('name',)
-    prepopulated_fields = {'slug': ('name',)}
-    ordering = ('-created_at',)
+# @admin.register(OrganizationType)
+# class OrganizationTypeAdmin(admin.ModelAdmin):
+#     list_display = ('name', 'created_at', 'updated_at')
+#     search_fields = ('name',)
+#     prepopulated_fields = {'slug': ('name',)}
+#     ordering = ('-created_at',)
     
-    def type_display(self, obj):
-        return obj.slug
-    type_display.short_description = 'Type'
-    type_display.admin_order_field = 'slug'
+#     def type_display(self, obj):
+#         return obj.slug
+#     type_display.short_description = 'Type'
+#     type_display.admin_order_field = 'slug'
     
 
 from django.urls import reverse
@@ -89,6 +89,8 @@ class EventAdmin(admin.ModelAdmin):
         'max_estimated_earning',
         # 'participants',
         # 'payout_manager',
+        'event_created',
+        'popup_store_created',
         'start_reminder_sent',
         'twenty_four_hour_reminder_sent',
         'end_thank_you_sent',
@@ -100,6 +102,21 @@ class EventAdmin(admin.ModelAdmin):
         if db_field.name == 'creator' and formfield:
             formfield.label_from_instance = lambda obj: obj.full_name.strip() if (obj.full_name and obj.full_name.strip()) else (obj.email or obj.phone or f"User {obj.id}")
         return formfield
+
+    def save_model(self, request, obj, form, change):
+        is_new = not change
+        super().save_model(request, obj, form, change)
+        if is_new and not obj.event_created:
+            obj.event_created = True
+            obj.save(update_fields=['event_created'])
+            if obj.creator and obj.creator.email:
+                from authentication.emails import send_welcome_organizer_email
+                send_welcome_organizer_email(
+                    email=obj.creator.email,
+                    organizer_name=obj.creator.full_name or obj.creator.phone
+                )
+            from authentication.emails import send_event_created_admin_email
+            send_event_created_admin_email(obj)
 
     def get_urls(self):
         from django.urls import path
@@ -342,3 +359,34 @@ class FundraiserAdmin(admin.ModelAdmin):
             status = "enabled" if fundraiser.is_active else "disabled"
             messages.success(request, f"Popup store for {fundraiser.user.email} has been {status}.")
         return redirect(reverse('admin:event_fundraiser_changelist'))
+
+    def save_model(self, request, obj, form, change):
+        is_new = not change
+        super().save_model(request, obj, form, change)
+        if is_new and obj.event and not obj.event.popup_store_created:
+            obj.event.popup_store_created = True
+            obj.event.save(update_fields=['popup_store_created'])
+            from authentication.emails import (
+                send_new_popup_alert_email,
+                send_popup_store_created_member_email,
+                send_popup_store_created_admin_email,
+            )
+            store_url = f"https://treatsislandgo.com/store/{obj.id}"
+            member_name = (obj.user.full_name or obj.user.phone) if obj.user else "Supporter"
+            org_name = (obj.event.creator.full_name or obj.event.creator.phone) if obj.event.creator else "Organizer"
+            if obj.event.creator and obj.event.creator.email:
+                send_new_popup_alert_email(
+                    email=obj.event.creator.email,
+                    organizer_name=org_name,
+                    member_name=member_name,
+                    popup_store_name=obj.name or "Pop-Up Store"
+                )
+            if obj.user and obj.user.email:
+                send_popup_store_created_member_email(
+                    email=obj.user.email,
+                    member_name=member_name,
+                    popup_store_name=obj.name or "Pop-Up Store",
+                    event_name=obj.event.name or obj.event.code,
+                    store_url=store_url
+                )
+            send_popup_store_created_admin_email(obj)

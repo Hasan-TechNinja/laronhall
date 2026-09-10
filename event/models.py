@@ -34,6 +34,8 @@ class Event(models.Model):
     estimated_participants = models.IntegerField(blank=True, null=True)
     participants = models.ManyToManyField(settings.AUTH_USER_MODEL, related_name='events', blank=True)
     payout_manager = models.CharField(max_length=255, blank=True, null=True)
+    event_created = models.BooleanField(default=False, verbose_name="Event created")
+    popup_store_created = models.BooleanField(default=False, verbose_name="Popup store created")
     start_reminder_sent = models.BooleanField(default=False)
     twenty_four_hour_reminder_sent = models.BooleanField(default=False)
     end_thank_you_sent = models.BooleanField(default=False)
