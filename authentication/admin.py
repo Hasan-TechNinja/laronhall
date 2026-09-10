@@ -19,9 +19,31 @@ class TermsAndConditionAdmin(admin.ModelAdmin):
 admin.site.register(TermsAndCondition, TermsAndConditionAdmin)
 
 
+from django import forms
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from django.contrib.auth.forms import AdminUserCreationForm
+
+
+class CustomUserCreationForm(AdminUserCreationForm):
+    full_name = forms.CharField(max_length=255, required=False, label="Full Name")
+    email = forms.EmailField(required=False, label="Email")
+
+    class Meta(AdminUserCreationForm.Meta):
+        model = User
+        fields = ('phone', 'full_name', 'email')
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        user.full_name = self.cleaned_data.get('full_name')
+        user.email = self.cleaned_data.get('email')
+        user.is_active = True
+        if commit:
+            user.save()
+        return user
+
 
 class UserAdmin(BaseUserAdmin):
+    add_form = CustomUserCreationForm
     list_display = ('phone', 'email', 'full_name', 'is_staff')
     list_filter = ('is_staff', 'is_superuser', 'is_active')
     fieldsets = (
@@ -34,10 +56,11 @@ class UserAdmin(BaseUserAdmin):
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
-            'fields': ('phone', 'password'),
+            'fields': ('phone', 'full_name', 'email', 'password1', 'password2'),
         }),
     )
-    search_fields = ('phone', 'email')
+    search_fields = ('phone', 'email', 'full_name')
     ordering = ('phone',)
 
 admin.site.register(User, UserAdmin)
+

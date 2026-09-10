@@ -12,8 +12,8 @@ class OrganizationType(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name = "Organization"
-        verbose_name_plural = "Organizations"
+        verbose_name = "Organization Type"
+        verbose_name_plural = "Organization Types"
 
     def __str__(self):
         return self.name
@@ -49,6 +49,13 @@ class Event(models.Model):
         return self.name or f"Event {self.id}"
 
 
+class Organization(Event):
+    class Meta:
+        proxy = True
+        verbose_name = "Organization"
+        verbose_name_plural = "Organizations"
+
+
 class Fundraiser(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='fundraisers')
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='fundraisers')
@@ -67,4 +74,7 @@ class Fundraiser(models.Model):
         verbose_name_plural = "Popup Stores"
 
     def __str__(self):
-        return f"{self.user.email} - {self.event.code}"
+        user_name = self.user.full_name.strip() if (self.user and self.user.full_name and self.user.full_name.strip()) else (self.user.email if self.user else f"User {self.user_id}")
+        store_display = self.name.strip() if (self.name and self.name.strip()) else f"{user_name}'s Store"
+        event_code = self.event.code if self.event else ""
+        return f"{store_display} - {event_code}" if event_code else store_display

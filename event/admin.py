@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import OrganizationType, Event, Fundraiser
+from .models import OrganizationType, Event, Fundraiser, Organization
 
 # Register your models here.
 #code update from server
@@ -19,6 +19,7 @@ from .models import OrganizationType, Event, Fundraiser
 
 from django.urls import reverse
 from django.utils.html import format_html
+from django.utils.safestring import mark_safe
 
 class FundraiserInline(admin.TabularInline):
     model = Fundraiser
@@ -277,11 +278,12 @@ class EventAdmin(admin.ModelAdmin):
 
 @admin.register(Fundraiser)
 class FundraiserAdmin(admin.ModelAdmin):
-    list_display = ('store_name', 'participant', 'sales_and_goal', 'actions_buttons')
+    list_display = ('store_name', 'event_name', 'sales_and_goal', 'actions_buttons')
+
     list_filter = ('event', 'event__type', 'created_at', 'is_active')
-    search_fields = ('name', 'user__email', 'user__full_name', 'event__name')
+    search_fields = ('name', 'user__email', 'user__full_name', 'event__name', 'event__code')
     ordering = ('-created_at',)
-    list_select_related = ('user', 'event')
+    list_select_related = ('user', 'event', 'event__type')
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
@@ -300,14 +302,55 @@ class FundraiserAdmin(admin.ModelAdmin):
         return qs
 
     def store_name(self, obj):
-        return obj.name or f"{obj.user.email}'s Store"
+        if obj.name and obj.name.strip():
+            return obj.name.strip()
+        user_name = obj.user.full_name.strip() if (obj.user and obj.user.full_name and obj.user.full_name.strip()) else None
+        if user_name:
+            return f"{user_name}'s Store"
+        if obj.user and obj.user.email:
+            return f"{obj.user.email}'s Store"
+        return f"Store {obj.id}"
     store_name.short_description = "Store Name"
     store_name.admin_order_field = 'name'
 
     def participant(self, obj):
-        return getattr(obj.user, 'full_name', obj.user.email) or obj.user.email
+        if not obj.user:
+            return "-"
+        name = obj.user.full_name.strip() if (obj.user.full_name and obj.user.full_name.strip()) else ""
+        email = obj.user.email or ""
+        phone = obj.user.phone or ""
+        if name and email:
+            return format_html(
+                '<div style="font-weight: 600; color: #1e293b;">{}</div>'
+                '<div style="font-size: 11px; color: #64748b;">{}</div>',
+                name, email
+            )
+        elif name:
+            return name
+        elif email:
+            return email
+        return phone or f"User {obj.user.id}"
     participant.short_description = "Participant"
-    participant.admin_order_field = 'user__email'
+    participant.admin_order_field = 'user__full_name'
+
+    def event_name(self, obj):
+        if not obj.event:
+            return "-"
+        name = obj.event.name or f"Event {obj.event.id}"
+        code = obj.event.code or ""
+        type_name = obj.event.type.name if (obj.event and obj.event.type) else ""
+        url = reverse('admin:event_event_change', args=[obj.event.id])
+
+        type_badge = f'<div style="margin-top: 3px;"><span style="display: inline-block; background: #f1f5f9; color: #475569; padding: 2px 6px; border-radius: 3px; font-size: 11px;">{type_name}</span></div>' if type_name else ""
+        code_text = f'<div style="font-size: 11px; color: #64748b; margin-top: 2px;">Code: <strong>{code}</strong></div>' if code else ""
+
+        return format_html(
+            '<a href="{}" style="font-weight: 600; text-decoration: none; color: #ba215a;">{}</a>{}{}',
+            url, name, mark_safe(code_text), mark_safe(type_badge)
+        )
+    event_name.short_description = "Event / Campaign"
+    event_name.admin_order_field = 'event__name'
+
 
     def sales_and_goal(self, obj):
         sales = getattr(obj, 'total_sales_annotated', 0.0)
@@ -390,3 +433,226 @@ class FundraiserAdmin(admin.ModelAdmin):
                     store_url=store_url
                 )
             send_popup_store_created_admin_email(obj)
+
+
+@admin.register(Organization)
+class OrganizationAdmin(admin.ModelAdmin):
+    change_form_template = 'admin/event/organization/change_form.html'
+    list_display = (
+        'organization_name',
+        'organization_type',
+        'contact_person',
+        'organizer_email',
+        'organizer_phone',
+    )
+    list_display_links = ('organization_name',)
+    list_filter = ('type', 'is_active')
+    search_fields = (
+        'name',
+        'code',
+        'creator__email',
+        'creator__phone',
+        'creator__full_name',
+        'type__name',
+    )
+    ordering = ('-id',)
+    list_select_related = ('creator', 'type')
+    readonly_fields = ('organizer_email', 'organizer_phone')
+    fields = (
+        'name',
+        'type',
+        'creator',
+        'organizer_email',
+        'organizer_phone',
+    )
+
+    def get_urls(self):
+        from django.urls import path
+        urls = super().get_urls()
+        custom_urls = [
+            path('<path:object_id>/send-email/', self.admin_site.admin_view(self.send_email_view), name='event_organization_send_email'),
+            path('quick-add-organizer/', self.admin_site.admin_view(self.quick_add_organizer_view), name='event_organization_quick_add_organizer'),
+            path('organizer-info/<int:user_id>/', self.admin_site.admin_view(self.organizer_info_view), name='event_organization_user_info'),
+        ]
+        return custom_urls + urls
+
+    def send_email_view(self, request, object_id, *args, **kwargs):
+        from django.shortcuts import redirect
+        from django.contrib import messages
+        from django.core.mail import send_mail
+        from django.conf import settings
+
+        event = self.get_object(request, object_id)
+        if request.method == 'POST' and event and event.creator and event.creator.email:
+            message = request.POST.get('message', '').strip()
+            subject = request.POST.get('subject', '').strip() or f"Message regarding organization {event.name or event.code}"
+            if message:
+                try:
+                    from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@treatsislandgo.com')
+                    send_mail(
+                        subject=subject,
+                        message=message,
+                        from_email=from_email,
+                        recipient_list=[event.creator.email],
+                        fail_silently=False,
+                    )
+                    messages.success(request, f"Email sent successfully to {event.creator.email}.")
+                except Exception as e:
+                    messages.error(request, f"Failed to send email: {str(e)}")
+            else:
+                messages.warning(request, "Email message was empty.")
+        elif request.method == 'POST':
+            messages.error(request, "Cannot send email: Organizer has no email address.")
+
+        referer = request.META.get('HTTP_REFERER')
+        if referer:
+            return redirect(referer)
+        return redirect(reverse('admin:event_organization_changelist'))
+
+    def quick_add_organizer_view(self, request):
+        from django.http import JsonResponse
+        from authentication.models import User
+        if request.method != 'POST':
+            return JsonResponse({'status': 'error', 'message': 'Invalid method'}, status=405)
+
+        full_name = request.POST.get('full_name', '').strip()
+        email = request.POST.get('email', '').strip()
+        phone = request.POST.get('phone', '').strip()
+
+        if not phone:
+            return JsonResponse({'status': 'error', 'message': 'Contact Number (Phone) is required.'}, status=400)
+
+        try:
+            from authentication.utils import normalize_phone_number
+            norm_phone = normalize_phone_number(phone)
+        except Exception:
+            norm_phone = phone
+
+        user = User.objects.filter(phone=norm_phone).first()
+        if not user and email:
+            user = User.objects.filter(email__iexact=email).first()
+
+        if user:
+            if full_name:
+                user.full_name = full_name
+            if email and not user.email:
+                user.email = email
+            user.is_active = True
+            user.save()
+        else:
+            user = User.objects.create(
+                phone=norm_phone,
+                full_name=full_name or None,
+                email=email or None,
+                is_active=True,
+            )
+            user.set_unusable_password()
+            user.save()
+
+        display_name = user.full_name.strip() if (user.full_name and user.full_name.strip()) else (user.email or user.phone)
+        return JsonResponse({
+            'status': 'success',
+            'id': user.id,
+            'name': display_name,
+            'email': user.email or '',
+            'phone': user.phone or '',
+        })
+
+    def organizer_info_view(self, request, user_id):
+        from django.http import JsonResponse
+        from authentication.models import User
+        user = User.objects.filter(id=user_id).first()
+        if not user:
+            return JsonResponse({'status': 'error', 'message': 'User not found'}, status=404)
+        return JsonResponse({
+            'status': 'success',
+            'id': user.id,
+            'name': user.full_name or user.phone,
+            'email': user.email or '',
+            'phone': user.phone or '',
+        })
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        formfield = super().formfield_for_foreignkey(db_field, request, **kwargs)
+        if db_field.name == 'creator' and formfield:
+            formfield.label_from_instance = lambda obj: obj.full_name.strip() if (obj.full_name and obj.full_name.strip()) else (obj.email or obj.phone or f"User {obj.id}")
+        return formfield
+
+    def save_model(self, request, obj, form, change):
+        from django.utils import timezone
+        import uuid
+        is_new = not change
+        if not obj.start_date:
+            obj.start_date = timezone.now()
+        if not obj.code:
+            obj.code = uuid.uuid4().hex[:6].upper()
+        super().save_model(request, obj, form, change)
+        if is_new and not obj.event_created:
+            obj.event_created = True
+            obj.save(update_fields=['event_created'])
+            if obj.creator and obj.creator.email:
+                from authentication.emails import send_welcome_organizer_email
+                send_welcome_organizer_email(
+                    email=obj.creator.email,
+                    organizer_name=obj.creator.full_name or obj.creator.phone
+                )
+            from authentication.emails import send_event_created_admin_email
+            send_event_created_admin_email(obj)
+
+    def organization_name(self, obj):
+        return obj.name or "-"
+    organization_name.short_description = "Name of Organization"
+    organization_name.admin_order_field = 'name'
+
+    def organization_type(self, obj):
+        return obj.type.name if obj and obj.type else "-"
+    organization_type.short_description = "Type"
+    organization_type.admin_order_field = 'type__name'
+
+    def contact_person(self, obj):
+        if obj.creator and obj.creator.full_name and obj.creator.full_name.strip():
+            return obj.creator.full_name.strip()
+        return "-"
+    contact_person.short_description = "Organizer"
+    contact_person.admin_order_field = 'creator__full_name'
+
+    def organizer_email(self, obj):
+        if not obj:
+            return "-"
+        email = obj.creator.email if obj.creator and obj.creator.email else ""
+        send_button = ""
+        if obj.id and email:
+            send_url = reverse('admin:event_organization_send_email', args=[obj.id])
+            clean_name = (obj.name or "").replace("'", "\\'").replace('"', '&quot;')
+            onclick_action = (
+                f"if(typeof openSendEmailInputBox==='function'){{ openSendEmailInputBox('{email}', '{send_url}', '{clean_name}'); }} "
+                f"else {{ var m=prompt('Enter message to send to {email}:'); if(m && m.trim()){{ var f=document.createElement('form'); f.method='POST'; f.action='{send_url}'; var c=document.querySelector('[name=csrfmiddlewaretoken]'); if(c){{ var ci=document.createElement('input'); ci.type='hidden'; ci.name='csrfmiddlewaretoken'; ci.value=c.value; f.appendChild(ci); }} var mi=document.createElement('input'); mi.type='hidden'; mi.name='message'; mi.value=m.trim(); f.appendChild(mi); document.body.appendChild(f); f.submit(); }} }}"
+            )
+            send_button = (
+                f'<button type="button" id="btn-send-organizer-email" data-url="{send_url}" class="button" style="'
+                f'margin-left: 12px; background-color: #ba215a; color: #ffffff; border: none; '
+                f'border-radius: 4px; padding: 5px 14px; font-size: 13px; font-weight: bold; '
+                f'cursor: pointer; display: inline-flex; align-items: center; gap: 5px;" '
+                f'onclick="{onclick_action}">'
+                f'✉ Send Email</button>'
+            )
+        elif not email:
+            return mark_safe('<div style="display:inline-flex; align-items:center;"><span id="organizer_email_text" style="color:#888;">(No email set)</span></div>')
+
+        return mark_safe(
+            f'<div style="display:inline-flex; align-items:center;">'
+            f'<span id="organizer_email_text" style="font-weight: 500;">{email}</span>'
+            f'{send_button}'
+            f'</div>'
+        )
+    organizer_email.short_description = "Email"
+
+    organizer_email.admin_order_field = 'creator__email'
+
+    def organizer_phone(self, obj):
+        phone = obj.creator.phone if obj and obj.creator and obj.creator.phone else ""
+        if not phone:
+            return mark_safe('<span id="organizer_phone_text" style="color:#888;">-</span>')
+        return mark_safe(f'<span id="organizer_phone_text">{phone}</span>')
+    organizer_phone.short_description = "Contact Number"
+    organizer_phone.admin_order_field = 'creator__phone'

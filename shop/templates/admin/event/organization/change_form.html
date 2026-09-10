@@ -1,0 +1,283 @@
+{% extends "admin/change_form.html" %}
+{% load i18n admin_urls static %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+  .btn-add-organizer-trigger {
+    margin-left: 10px;
+    background: #28a745;
+    color: #fff !important;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: bold;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    vertical-align: middle;
+    text-decoration: none;
+  }
+  .btn-add-organizer-trigger:hover {
+    background: #218838;
+  }
+</style>
+
+<script>
+function openSendEmailInputBox(email, sendUrl, orgName) {
+  var oldModal = document.getElementById('emailSendBoxModal');
+  if (oldModal) { oldModal.remove(); }
+
+  var modal = document.createElement('div');
+  modal.id = 'emailSendBoxModal';
+  modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.6); z-index: 99999; display: flex; align-items: center; justify-content: center;';
+
+  var box = document.createElement('div');
+  box.style.cssText = 'background: #ffffff; border-radius: 8px; width: 520px; max-width: 90vw; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.35); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;';
+
+  box.innerHTML = 
+    '<h3 style="margin-top: 0; margin-bottom: 14px; font-size: 18px; color: #ba215a; border-bottom: 2px solid #ba215a; padding-bottom: 8px;">✉ Send Email to Organizer</h3>' +
+    '<div style="margin-bottom: 12px;">' +
+      '<label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 4px; color: #444;">Recipient:</label>' +
+      '<div style="font-size: 14px; font-weight: bold; color: #222; padding: 7px 10px; background: #f8f9fa; border: 1px solid #e2e8f0; border-radius: 4px;">' + email + '</div>' +
+    '</div>' +
+    '<div style="margin-bottom: 12px;">' +
+      '<label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 4px; color: #444;">Subject:</label>' +
+      '<input type="text" id="emailModalSubject" value="Message regarding ' + (orgName || 'organization') + '" style="width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 14px;">' +
+    '</div>' +
+    '<div style="margin-bottom: 18px;">' +
+      '<label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 4px; color: #444;">Message <span style="color:#e11d48;">*</span>:</label>' +
+      '<textarea id="emailModalMessage" rows="6" placeholder="Type your message here..." style="width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 14px; resize: vertical;"></textarea>' +
+    '</div>' +
+    '<div style="display: flex; justify-content: flex-end; gap: 10px;">' +
+      '<button type="button" id="btnCancelSendEmail" style="padding: 8px 16px; background: #e2e8f0; color: #334155; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 13px;">Cancel</button>' +
+      '<button type="button" id="btnConfirmSendEmail" style="padding: 8px 20px; background: #ba215a; color: #ffffff; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 13px;">✉ Send Email</button>' +
+    '</div>';
+
+  modal.appendChild(box);
+  document.body.appendChild(modal);
+
+  setTimeout(function() {
+    var txt = document.getElementById('emailModalMessage');
+    if (txt) { txt.focus(); }
+  }, 50);
+
+  document.getElementById('btnCancelSendEmail').onclick = function() {
+    modal.remove();
+  };
+
+  modal.onclick = function(e) {
+    if (e.target === modal) {
+      modal.remove();
+    }
+  };
+
+  document.getElementById('btnConfirmSendEmail').onclick = function() {
+    var subject = document.getElementById('emailModalSubject').value.trim();
+    var message = document.getElementById('emailModalMessage').value.trim();
+    if (!message) {
+      alert('Please enter a message to send.');
+      return;
+    }
+
+    this.disabled = true;
+    this.innerText = 'Sending...';
+
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.action = sendUrl;
+
+    var csrf = document.querySelector('[name=csrfmiddlewaretoken]');
+    if (csrf) {
+      var csrfInput = document.createElement('input');
+      csrfInput.type = 'hidden';
+      csrfInput.name = 'csrfmiddlewaretoken';
+      csrfInput.value = csrf.value;
+      form.appendChild(csrfInput);
+    }
+
+    var subInput = document.createElement('input');
+    subInput.type = 'hidden';
+    subInput.name = 'subject';
+    subInput.value = subject;
+    form.appendChild(subInput);
+
+    var msgInput = document.createElement('input');
+    msgInput.type = 'hidden';
+    msgInput.name = 'message';
+    msgInput.value = message;
+    form.appendChild(msgInput);
+
+    document.body.appendChild(form);
+    form.submit();
+  };
+}
+
+var openSendEmailModal = openSendEmailInputBox;
+
+function openAddOrganizerModal() {
+  var oldModal = document.getElementById('addOrganizerBoxModal');
+  if (oldModal) { oldModal.remove(); }
+
+  var modal = document.createElement('div');
+  modal.id = 'addOrganizerBoxModal';
+  modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.6); z-index: 99999; display: flex; align-items: center; justify-content: center;';
+
+  var box = document.createElement('div');
+  box.style.cssText = 'background: #ffffff; border-radius: 8px; width: 480px; max-width: 90vw; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.35); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;';
+
+  box.innerHTML = 
+    '<h3 style="margin-top: 0; margin-bottom: 14px; font-size: 18px; color: #28a745; border-bottom: 2px solid #28a745; padding-bottom: 8px;">＋ Add New Organizer</h3>' +
+    '<div id="addOrgErrorBox" style="color: #e11d48; font-size: 13px; margin-bottom: 10px; display: none;"></div>' +
+    '<div style="margin-bottom: 12px;">' +
+      '<label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 4px; color: #444;">Full Name:</label>' +
+      '<input type="text" id="newOrgFullName" placeholder="e.g. John Doe" style="width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 14px;">' +
+    '</div>' +
+    '<div style="margin-bottom: 12px;">' +
+      '<label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 4px; color: #444;">Email:</label>' +
+      '<input type="email" id="newOrgEmail" placeholder="e.g. john@example.com" style="width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 14px;">' +
+    '</div>' +
+    '<div style="margin-bottom: 18px;">' +
+      '<label style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 4px; color: #444;">Contact Number (Phone) <span style="color:#e11d48;">*</span>:</label>' +
+      '<input type="text" id="newOrgPhone" placeholder="e.g. +12138108313" style="width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 14px;">' +
+    '</div>' +
+    '<div style="display: flex; justify-content: flex-end; gap: 10px;">' +
+      '<button type="button" id="btnCancelAddOrg" style="padding: 8px 16px; background: #e2e8f0; color: #334155; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 13px;">Cancel</button>' +
+      '<button type="button" id="btnSaveNewOrg" style="padding: 8px 20px; background: #28a745; color: #ffffff; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 13px;">Save Organizer</button>' +
+    '</div>';
+
+  modal.appendChild(box);
+  document.body.appendChild(modal);
+
+  setTimeout(function() {
+    var fn = document.getElementById('newOrgFullName');
+    if (fn) { fn.focus(); }
+  }, 50);
+
+  document.getElementById('btnCancelAddOrg').onclick = function() {
+    modal.remove();
+  };
+
+  modal.onclick = function(e) {
+    if (e.target === modal) {
+      modal.remove();
+    }
+  };
+
+  document.getElementById('btnSaveNewOrg').onclick = function() {
+    var fullName = document.getElementById('newOrgFullName').value.trim();
+    var email = document.getElementById('newOrgEmail').value.trim();
+    var phone = document.getElementById('newOrgPhone').value.trim();
+    var errDiv = document.getElementById('addOrgErrorBox');
+
+    if (!phone) {
+      errDiv.innerText = 'Contact Number (Phone) is required.';
+      errDiv.style.display = 'block';
+      return;
+    }
+
+    this.disabled = true;
+    this.innerText = 'Saving...';
+
+    var csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    var formData = new FormData();
+    formData.append('csrfmiddlewaretoken', csrf);
+    formData.append('full_name', fullName);
+    formData.append('email', email);
+    formData.append('phone', phone);
+
+    fetch('{% url "admin:event_organization_quick_add_organizer" %}', {
+      method: 'POST',
+      body: formData
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.status === 'success') {
+        var select = document.getElementById('id_creator');
+        if (select) {
+          var opt = new Option(data.name, data.id, true, true);
+          select.add(opt);
+          select.value = data.id;
+          var evt = new Event('change');
+          select.dispatchEvent(evt);
+        }
+        var emailSpan = document.getElementById('organizer_email_text');
+        if (emailSpan) { emailSpan.innerText = data.email || '(No email set)'; }
+        var phoneSpan = document.getElementById('organizer_phone_text');
+        if (phoneSpan) { phoneSpan.innerText = data.phone || '-'; }
+        modal.remove();
+        alert('Organizer "' + data.name + '" created and selected successfully!');
+      } else {
+        document.getElementById('btnSaveNewOrg').disabled = false;
+        document.getElementById('btnSaveNewOrg').innerText = 'Save Organizer';
+        errDiv.innerText = data.message || 'Error creating organizer.';
+        errDiv.style.display = 'block';
+      }
+    })
+    .catch(function(err) {
+      document.getElementById('btnSaveNewOrg').disabled = false;
+      document.getElementById('btnSaveNewOrg').innerText = 'Save Organizer';
+      errDiv.innerText = 'Server error. Please try again.';
+      errDiv.style.display = 'block';
+    });
+  };
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  // 1. Ensure '+ Add New Organizer' button exists
+  var select = document.getElementById('id_creator');
+  if (select && !document.getElementById('btn-add-organizer-trigger')) {
+    var addBtn = document.createElement('button');
+    addBtn.type = 'button';
+    addBtn.id = 'btn-add-organizer-trigger';
+    addBtn.className = 'btn-add-organizer-trigger';
+    addBtn.innerText = '＋ Add New Organizer';
+    addBtn.onclick = function(e) {
+      e.preventDefault();
+      openAddOrganizerModal();
+    };
+    if (select.parentNode) {
+      select.parentNode.appendChild(addBtn);
+    }
+  }
+
+  // 2. Real-time update of Email and Contact Number on dropdown change
+  if (select) {
+    select.addEventListener('change', function() {
+      var userId = this.value;
+      if (!userId) {
+        var eSpan = document.getElementById('organizer_email_text');
+        if (eSpan) eSpan.innerText = '-';
+        var pSpan = document.getElementById('organizer_phone_text');
+        if (pSpan) pSpan.innerText = '-';
+        var sBtn = document.getElementById('btn-send-organizer-email');
+        if (sBtn) sBtn.style.display = 'none';
+        return;
+      }
+      var infoUrl = '{% url "admin:event_organization_user_info" 0 %}'.replace('0', userId);
+      fetch(infoUrl)
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+          if (res.status === 'success') {
+            var eSpan = document.getElementById('organizer_email_text');
+            if (eSpan) eSpan.innerText = res.email || '(No email set)';
+            var pSpan = document.getElementById('organizer_phone_text');
+            if (pSpan) pSpan.innerText = res.phone || '-';
+            var sBtn = document.getElementById('btn-send-organizer-email');
+            if (sBtn) {
+              if (res.email) {
+                sBtn.style.display = 'inline-flex';
+                sBtn.setAttribute('onclick', "openSendEmailInputBox('" + res.email + "', sBtn.getAttribute('data-url'), '')");
+              } else {
+                sBtn.style.display = 'none';
+              }
+            }
+          }
+        });
+    });
+  }
+});
+</script>
+{% endblock extrahead %}
