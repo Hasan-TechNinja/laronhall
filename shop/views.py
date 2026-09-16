@@ -385,12 +385,17 @@ class CreateCheckoutSessionView(APIView):
         try:
             customer = create_stripe_customer(address, name, email, phone)
             
+            shop_id = next((f.id for _, _, f in order_items_to_create if f), None)
+            success_url = 'https://treatsislandgo.com/success?session_id={CHECKOUT_SESSION_ID}'
+            if shop_id:
+                success_url += f'&shop_id={shop_id}'
+
             checkout_kwargs = {
                 'idempotency_key': idempotency_key,
                 'payment_method_types': ['card'],
                 'line_items': line_items,
                 'mode': 'payment',
-                'success_url': 'https://treatsislandgo.com/success?session_id={CHECKOUT_SESSION_ID}',
+                'success_url': success_url,
                 'cancel_url': 'https://treatsislandgo.com/cancel',
                 'customer': customer.id,
                 'metadata': address_session_metadata(address, name, email, phone),
@@ -675,9 +680,15 @@ def finalize_donation(session):
     phone = metadata.get('donor_phone')
 
     if customer_details:
-        name = getattr(customer_details, 'name', None) or name
-        email = getattr(customer_details, 'email', None) or email
-        phone = getattr(customer_details, 'phone', None) or phone
+        c_name = getattr(customer_details, 'name', None)
+        c_email = getattr(customer_details, 'email', None)
+        c_phone = getattr(customer_details, 'phone', None)
+        if isinstance(c_name, str) and c_name:
+            name = c_name
+        if isinstance(c_email, str) and c_email:
+            email = c_email
+        if isinstance(c_phone, str) and c_phone:
+            phone = c_phone
 
     if name and not donation.name:
         donation.name = name
@@ -726,11 +737,24 @@ class PaymentSuccessView(APIView):
                 metadata_obj = getattr(session, 'metadata', {}) or {}
                 metadata = metadata_obj._data if hasattr(metadata_obj, '_data') else metadata_obj
                 if metadata.get('type') == 'donation' or Donation.objects.filter(stripe_session_id=session.id).exists():
-                    finalize_donation(session)
-                    return Response({'message': 'Payment successful, donation recorded.', 'type': 'donation'}, status=status.HTTP_200_OK)
+                    donation = finalize_donation(session)
+                    shop_id = donation.fundraiser_id if donation else (metadata.get('fundraiser_id') or None)
+                    return Response({
+                        'message': 'Payment successful, donation recorded.',
+                        'type': 'donation',
+                        'shop_id': shop_id,
+                        'fundraiser_id': shop_id
+                    }, status=status.HTTP_200_OK)
                 else:
                     finalize_order(session)
-                    return Response({'message': 'Payment successful, order created.', 'type': 'order'}, status=status.HTTP_200_OK)
+                    first_order = Order.objects.filter(stripe_session_id=session.id).first()
+                    shop_id = first_order.fundraiser_id if first_order else None
+                    return Response({
+                        'message': 'Payment successful, order created.',
+                        'type': 'order',
+                        'shop_id': shop_id,
+                        'fundraiser_id': shop_id
+                    }, status=status.HTTP_200_OK)
             else:
                 return Response({'error': 'Payment not successful'}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
@@ -803,13 +827,17 @@ class GuestCheckoutSessionView(APIView):
         customer = None
         idempotency_key = request.data.get('idempotency_key', str(uuid.uuid4()))
         try:
-            customer = create_stripe_customer(address, name, email, phone)
+            shop_id = next((fid for _, _, fid in order_items_to_create if fid), None)
+            success_url = 'https://treatsislandgo.com/success?session_id={CHECKOUT_SESSION_ID}'
+            if shop_id:
+                success_url += f'&shop_id={shop_id}'
+
             checkout_session = stripe.checkout.Session.create(
                 idempotency_key=idempotency_key,
                 payment_method_types=['card'],
                 line_items=line_items,
                 mode='payment',
-                success_url='https://treatsislandgo.com/success?session_id={CHECKOUT_SESSION_ID}',
+                success_url=success_url,
                 cancel_url='https://treatsislandgo.com/cancel',
                 customer=customer.id,
                 metadata=address_session_metadata(address, name, email, phone),
@@ -871,7 +899,7 @@ class CreateDonationCheckoutSessionView(APIView):
 
         donation_item_id = request.data.get('donation_item_id')
         slug = request.data.get('slug')
-        fundraiser_id = request.data.get('fundraiser_id')
+        fundraiser_id = request.data.get('fundraiser_id') or request.data.get('shop_id')
         custom_amount = request.data.get('amount')
 
         donation_item = None
@@ -900,6 +928,11 @@ class CreateDonationCheckoutSessionView(APIView):
                 fundraiser = Fundraiser.objects.filter(id=fundraiser_id).first()
             except (ValueError, TypeError):
                 fundraiser = None
+            if not fundraiser:
+                return Response(
+                    {"error": f"Shop / Fundraiser with ID '{fundraiser_id}' does not exist."},
+                    status=status.HTTP_404_NOT_FOUND
+                )
 
         # Donor details (NO shipping address required, NO address validation)
         is_guest = not request.user.is_authenticated
@@ -930,12 +963,16 @@ class CreateDonationCheckoutSessionView(APIView):
         idempotency_key = request.data.get('idempotency_key', str(uuid.uuid4()))
 
         try:
+            success_url = 'https://treatsislandgo.com/success?session_id={CHECKOUT_SESSION_ID}&type=donation'
+            if fundraiser:
+                success_url += f'&shop_id={fundraiser.id}'
+
             checkout_kwargs = {
                 'idempotency_key': idempotency_key,
                 'payment_method_types': ['card'],
                 'line_items': line_items,
                 'mode': 'payment',
-                'success_url': 'https://treatsislandgo.com/success?session_id={CHECKOUT_SESSION_ID}&type=donation',
+                'success_url': success_url,
                 'cancel_url': 'https://treatsislandgo.com/cancel',
                 'metadata': {
                     'type': 'donation',
