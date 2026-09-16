@@ -213,18 +213,38 @@ class EventAdmin(admin.ModelAdmin):
         obj._cached_total_sales = total
         return total
 
+    def get_total_donations(self, obj):
+        if hasattr(obj, '_cached_total_donations'):
+            return obj._cached_total_donations
+            
+        from shop.models import Donation
+        total = 0.0
+        donations = Donation.objects.filter(fundraiser__event=obj, is_paid=True)
+        for donation in donations:
+            try:
+                total += float(donation.amount)
+            except (ValueError, TypeError, AttributeError):
+                pass
+                
+        obj._cached_total_donations = total
+        return total
+
     def total_sales(self, obj):
-        val = self.get_total_sales(obj)
+        val = self.get_total_sales(obj) + self.get_total_donations(obj)
         return f"${val:.2f}"
     total_sales.short_description = "Total sales and donations"
 
     def amount_to_organizer(self, obj):
-        val = self.get_total_sales(obj) * 0.5
+        sales = self.get_total_sales(obj)
+        donations = self.get_total_donations(obj)
+        val = (sales * 0.5) + (donations * 0.25)
         return f"${val:.2f}"
     amount_to_organizer.short_description = "Amount due to organization"
 
     def to_treats_island(self, obj):
-        val = self.get_total_sales(obj) * 0.5
+        sales = self.get_total_sales(obj)
+        donations = self.get_total_donations(obj)
+        val = (sales * 0.5) + (donations * 0.75)
         return f"${val:.2f}"
     to_treats_island.short_description = "Amount due to Treats Island"
 

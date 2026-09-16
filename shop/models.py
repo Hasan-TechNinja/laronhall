@@ -95,3 +95,65 @@ class FinanceSummary(Order):
         proxy = True
         verbose_name = "Finance Summary"
         verbose_name_plural = "Finance Summaries"
+
+
+class DonationItem(models.Model):
+    name = models.CharField(max_length=255)
+    slug = models.SlugField(unique=True, blank=True, null=True)
+    description = models.TextField(blank=True, null=True)
+    price = models.DecimalField(max_digits=10, decimal_places=2, default=10.00, help_text="Donation amount")
+    image = models.ImageField(upload_to='donation_images', blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            base_slug = slugify(self.name) or "donation-item"
+            slug = base_slug
+            counter = 1
+            while DonationItem.objects.filter(slug=slug).exclude(pk=self.pk).exists():
+                slug = f"{base_slug}-{counter}"
+                counter += 1
+            self.slug = slug
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.name} (${self.price})"
+
+
+class Donation(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, related_name='donations', null=True, blank=True)
+    donation_item = models.ForeignKey(DonationItem, on_delete=models.SET_NULL, null=True, blank=True, related_name='donations')
+    fundraiser = models.ForeignKey('event.Fundraiser', on_delete=models.SET_NULL, null=True, blank=True, related_name='donations')
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    quantity = models.IntegerField(default=1)  # Always 1 as per requirements
+
+    # Donor details (no shipping address required)
+    name = models.CharField(max_length=255, blank=True, null=True)
+    email = models.EmailField(blank=True, null=True)
+    phone = models.CharField(max_length=50, blank=True, null=True)
+
+    # Payment status
+    stripe_session_id = models.CharField(max_length=255, blank=True, null=True, db_index=True)
+    is_paid = models.BooleanField(default=False)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    @property
+    def organization_amount(self):
+        """Organization receives 25% of donation if attributed to a fundraiser/campaign"""
+        if self.fundraiser:
+            return round(float(self.amount) * 0.25, 2)
+        return 0.0
+
+    @property
+    def treats_island_amount(self):
+        """Treats Island receives 75% of donation (or 100% if non-event donation)"""
+        if self.fundraiser:
+            return round(float(self.amount) * 0.75, 2)
+        return round(float(self.amount), 2)
+
+    def __str__(self):
+        donor = self.name or self.email or (self.user.phone if self.user else "Anonymous")
+        item_name = self.donation_item.name if self.donation_item else "Direct Donation"
+        return f"Donation: {donor} - ${self.amount} ({item_name})"

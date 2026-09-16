@@ -1,5 +1,5 @@
 from django.contrib import admin
-from . models import Product, Cart, Order, Review, Report, FinanceSummary
+from . models import Product, Cart, Order, Review, Report, FinanceSummary, DonationItem, Donation
 from io import BytesIO
 from datetime import datetime
 import threading
@@ -502,6 +502,59 @@ admin.site.register(Order, OrderAdmin)
 admin.site.register(Report, ReportAdmin)
 # admin.site.register(FinanceSummary, ReportAdmin)
 
+
+class DonationItemAdmin(admin.ModelAdmin):
+    list_display = ('id', 'name', 'slug', 'price', 'is_active', 'image', 'created_at')
+    list_filter = ('is_active', 'created_at')
+    list_editable = ('is_active',)
+    search_fields = ('name', 'description')
+    ordering = ('-created_at',)
+    prepopulated_fields = {'slug': ('name',)}
+
+
+class DonationAdmin(admin.ModelAdmin):
+    list_display = (
+        'id',
+        'donor_display',
+        'donation_item',
+        'amount',
+        'organization_share',
+        'treats_share',
+        'fundraiser',
+        'is_paid',
+        'stripe_session_id',
+        'created_at'
+    )
+    list_filter = ('is_paid', 'created_at', 'donation_item')
+    search_fields = ('name', 'email', 'phone', 'stripe_session_id', 'user__phone', 'user__email', 'fundraiser__name')
+    ordering = ('-created_at',)
+    list_select_related = ('user', 'donation_item', 'fundraiser')
+    readonly_fields = ('stripe_session_id', 'created_at', 'organization_share', 'treats_share')
+
+    def organization_share(self, obj):
+        if obj.fundraiser:
+            return f"${obj.organization_amount:.2f} (25%)"
+        return "$0.00 (No Org)"
+    organization_share.short_description = "Org Share (25%)"
+
+    def treats_share(self, obj):
+        pct = "75%" if obj.fundraiser else "100%"
+        return f"${obj.treats_island_amount:.2f} ({pct})"
+    treats_share.short_description = "Treats Island (75%)"
+
+    def donor_display(self, obj):
+        donor = (obj.name or '').strip()
+        if not donor and obj.user:
+            donor = (obj.user.full_name or obj.user.phone or '').strip()
+        if not donor:
+            donor = (obj.email or '').strip()
+        return donor or "Anonymous"
+    donor_display.short_description = "Donor"
+    donor_display.admin_order_field = 'name'
+
+
+admin.site.register(DonationItem, DonationItemAdmin)
+admin.site.register(Donation, DonationAdmin)
 
 
 class ReviewAdmin(admin.ModelAdmin):

@@ -44,12 +44,18 @@ class EventSerializer(serializers.ModelSerializer):
         return False
 
     def get_total_achieved(self, obj):
-        from shop.models import Order
+        from shop.models import Order, Donation
         total = 0.0
         orders = Order.objects.filter(fundraiser__event=obj, is_paid=True)
         for order in orders:
             try:
                 total += float(order.product.price) * order.quantity
+            except (ValueError, TypeError):
+                pass
+        donations = Donation.objects.filter(fundraiser__event=obj, is_paid=True)
+        for donation in donations:
+            try:
+                total += float(donation.amount)
             except (ValueError, TypeError):
                 pass
         return total
@@ -76,7 +82,7 @@ class EventSerializer(serializers.ModelSerializer):
         result = []
         
         # We also need Fundraiser and Order to calculate shop data
-        from shop.models import Order
+        from shop.models import Order, Donation
         
         for user in participants:
             full_name = user.full_name
@@ -100,10 +106,17 @@ class EventSerializer(serializers.ModelSerializer):
                         shop_achieved += float(order.product.price) * order.quantity
                     except (ValueError, TypeError):
                         pass
+
+                donations = Donation.objects.filter(fundraiser=fundraiser, is_paid=True)
+                for donation in donations:
+                    try:
+                        shop_achieved += float(donation.amount)
+                    except (ValueError, TypeError):
+                        pass
                 
-                total_supporters = orders.annotate(
-                    supporter_email=Coalesce('user__email', 'email')
-                ).values('supporter_email').distinct().count()
+                order_emails = set(orders.annotate(supporter_email=Coalesce('user__email', 'email')).values_list('supporter_email', flat=True))
+                donation_emails = set(donations.annotate(supporter_email=Coalesce('user__email', 'email')).values_list('supporter_email', flat=True))
+                total_supporters = len(order_emails.union(donation_emails))
 
             result.append({
                 'id': user.id,
@@ -135,12 +148,18 @@ class EventDetailedSerializer(serializers.ModelSerializer):
         return False
 
     def get_total_achieved(self, obj):
-        from shop.models import Order
+        from shop.models import Order, Donation
         total = 0.0
         orders = Order.objects.filter(fundraiser__event=obj, is_paid=True)
         for order in orders:
             try:
                 total += float(order.product.price) * order.quantity
+            except (ValueError, TypeError):
+                pass
+        donations = Donation.objects.filter(fundraiser__event=obj, is_paid=True)
+        for donation in donations:
+            try:
+                total += float(donation.amount)
             except (ValueError, TypeError):
                 pass
         return total
@@ -203,11 +222,18 @@ class FundraiserSerializer(serializers.ModelSerializer):
         return f"https://treatsislandgo.com/shop/{obj.id}"
 
     def get_achieved(self, obj):
+        from shop.models import Order, Donation
         orders = Order.objects.filter(fundraiser=obj, is_paid=True)
         total_achieved = 0.0
         for order in orders:
             try:
                 total_achieved += float(order.product.price) * order.quantity
+            except (ValueError, TypeError):
+                pass
+        donations = Donation.objects.filter(fundraiser=obj, is_paid=True)
+        for donation in donations:
+            try:
+                total_achieved += float(donation.amount)
             except (ValueError, TypeError):
                 pass
         return total_achieved

@@ -1,7 +1,7 @@
 from rest_framework.views import APIView
 from django.shortcuts import render
-from . models import Product, Cart, Order
-from . serializers import ProductSerializer, CartSerializer, OrderSerializer
+from . models import Product, Cart, Order, Review, DonationItem, Donation
+from . serializers import ProductSerializer, CartSerializer, OrderSerializer, ReviewSerializer, DonationItemSerializer, DonationSerializer
 from rest_framework import permissions, status
 from rest_framework.response import Response
 import stripe
@@ -118,6 +118,27 @@ class ProductDetailView(APIView):
             cache.set(cache_key, data, 60 * 60 * 24) # 24 hours
             
         return Response(data)
+
+
+class DonationItemListView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        items = DonationItem.objects.filter(is_active=True).order_by('price')
+        serializer = DonationItemSerializer(items, many=True, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class DonationItemDetailView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, slug):
+        try:
+            item = DonationItem.objects.get(slug=slug, is_active=True)
+        except DonationItem.DoesNotExist:
+            return Response({"error": "Donation item not found"}, status=status.HTTP_404_NOT_FOUND)
+        serializer = DonationItemSerializer(item, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class AddToCart(APIView):
@@ -445,7 +466,12 @@ class StripeWebhookView(APIView):
         try:
             if event['type'] == 'checkout.session.completed':
                 session = event['data']['object']
-                finalize_order(session)
+                metadata_obj = getattr(session, 'metadata', {}) or {}
+                metadata = metadata_obj._data if hasattr(metadata_obj, '_data') else metadata_obj
+                if metadata.get('type') == 'donation' or Donation.objects.filter(stripe_session_id=session.id).exists():
+                    finalize_donation(session)
+                else:
+                    finalize_order(session)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -607,6 +633,85 @@ def finalize_order(session):
             pass
 
 
+@transaction.atomic
+def finalize_donation(session):
+    if getattr(session, 'payment_status', None) != 'paid':
+        return None
+
+    donation = Donation.objects.filter(stripe_session_id=session.id).first()
+    metadata_obj = getattr(session, 'metadata', {}) or {}
+    metadata = metadata_obj._data if hasattr(metadata_obj, '_data') else metadata_obj
+
+    if not donation:
+        donation_item_id = metadata.get('donation_item_id')
+        fundraiser_id = metadata.get('fundraiser_id')
+        amount_val = metadata.get('amount')
+        if not amount_val and hasattr(session, 'amount_total') and session.amount_total:
+            amount_val = round(session.amount_total / 100.0, 2)
+        else:
+            amount_val = round(float(amount_val or 0.0), 2)
+
+        donation_item = DonationItem.objects.filter(id=donation_item_id).first() if donation_item_id else None
+        fundraiser = None
+        if fundraiser_id:
+            from event.models import Fundraiser
+            try:
+                fundraiser = Fundraiser.objects.filter(id=fundraiser_id).first()
+            except (ValueError, TypeError):
+                fundraiser = None
+
+        donation = Donation.objects.create(
+            donation_item=donation_item,
+            fundraiser=fundraiser,
+            amount=amount_val,
+            quantity=1,
+            stripe_session_id=session.id,
+            is_paid=True,
+        )
+
+    customer_details = getattr(session, 'customer_details', None)
+    name = metadata.get('donor_name')
+    email = metadata.get('donor_email')
+    phone = metadata.get('donor_phone')
+
+    if customer_details:
+        name = getattr(customer_details, 'name', None) or name
+        email = getattr(customer_details, 'email', None) or email
+        phone = getattr(customer_details, 'phone', None) or phone
+
+    if name and not donation.name:
+        donation.name = name
+    if email and not donation.email:
+        donation.email = email
+    if phone and not donation.phone:
+        donation.phone = phone
+
+    user_id = getattr(session, 'client_reference_id', None) or metadata.get('user_id')
+    if user_id and not donation.user:
+        try:
+            donation.user = User.objects.get(id=int(user_id))
+        except (User.DoesNotExist, ValueError, TypeError):
+            pass
+
+    donation.is_paid = True
+    donation.save()
+
+    # If linked to a fundraiser organizer, send push notification
+    if donation.fundraiser and donation.fundraiser.user:
+        try:
+            donor_display = donation.name or "Someone"
+            send_push_notification(
+                user=donation.fundraiser.user,
+                title="New Donation Received",
+                body=f"{donor_display} donated ${donation.amount} to your campaign.",
+                data={"fundraiser_id": str(donation.fundraiser.id), "donation_id": str(donation.id), "type": "new_donation"}
+            )
+        except Exception:
+            pass
+
+    return donation
+
+
 class PaymentSuccessView(APIView):
     permission_classes = [permissions.AllowAny]
 
@@ -618,8 +723,14 @@ class PaymentSuccessView(APIView):
         try:
             session = stripe.checkout.Session.retrieve(session_id)
             if session.payment_status == 'paid':
-                finalize_order(session)
-                return Response({'message': 'Payment successful, order created.'}, status=status.HTTP_200_OK)
+                metadata_obj = getattr(session, 'metadata', {}) or {}
+                metadata = metadata_obj._data if hasattr(metadata_obj, '_data') else metadata_obj
+                if metadata.get('type') == 'donation' or Donation.objects.filter(stripe_session_id=session.id).exists():
+                    finalize_donation(session)
+                    return Response({'message': 'Payment successful, donation recorded.', 'type': 'donation'}, status=status.HTTP_200_OK)
+                else:
+                    finalize_order(session)
+                    return Response({'message': 'Payment successful, order created.', 'type': 'order'}, status=status.HTTP_200_OK)
             else:
                 return Response({'error': 'Payment not successful'}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
@@ -750,6 +861,127 @@ class GuestCheckoutSessionView(APIView):
                 except Exception:
                     pass
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class CreateDonationCheckoutSessionView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        write_checkout_log("CreateDonationCheckoutSessionView", request)
+
+        donation_item_id = request.data.get('donation_item_id')
+        slug = request.data.get('slug')
+        fundraiser_id = request.data.get('fundraiser_id')
+        custom_amount = request.data.get('amount')
+
+        donation_item = None
+        if donation_item_id:
+            donation_item = DonationItem.objects.filter(id=donation_item_id, is_active=True).first()
+        elif slug:
+            donation_item = DonationItem.objects.filter(slug=slug, is_active=True).first()
+
+        if not donation_item and not custom_amount:
+            return Response({"error": "Please provide a valid donation item or donation amount."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            if custom_amount is not None:
+                amount = round(float(custom_amount), 2)
+            else:
+                amount = round(float(donation_item.price), 2)
+            if amount <= 0:
+                raise ValueError("Amount must be greater than zero")
+        except (ValueError, TypeError):
+            return Response({"error": "Invalid donation amount."}, status=status.HTTP_400_BAD_REQUEST)
+
+        fundraiser = None
+        if fundraiser_id:
+            from event.models import Fundraiser
+            try:
+                fundraiser = Fundraiser.objects.filter(id=fundraiser_id).first()
+            except (ValueError, TypeError):
+                fundraiser = None
+
+        # Donor details (NO shipping address required, NO address validation)
+        is_guest = not request.user.is_authenticated
+        if not is_guest:
+            name = request.data.get("name") or request.user.full_name
+            email = request.data.get("email") or request.user.email
+            phone = request.data.get("phone") or request.user.phone
+        else:
+            name = request.data.get("name")
+            email = request.data.get("email")
+            phone = request.data.get("phone")
+
+        item_title = donation_item.name if donation_item else "Direct Donation"
+        description = (donation_item.description if donation_item and donation_item.description else "Donation")
+
+        line_items = [{
+            'price_data': {
+                'currency': 'usd',
+                'product_data': {
+                    'name': f"Donation: {item_title}",
+                    'description': description,
+                },
+                'unit_amount': int(amount * 100),
+            },
+            'quantity': 1,  # Always 1, no increase or decrease
+        }]
+
+        idempotency_key = request.data.get('idempotency_key', str(uuid.uuid4()))
+
+        try:
+            checkout_kwargs = {
+                'idempotency_key': idempotency_key,
+                'payment_method_types': ['card'],
+                'line_items': line_items,
+                'mode': 'payment',
+                'success_url': 'https://treatsislandgo.com/success?session_id={CHECKOUT_SESSION_ID}&type=donation',
+                'cancel_url': 'https://treatsislandgo.com/cancel',
+                'metadata': {
+                    'type': 'donation',
+                    'donation_item_id': str(donation_item.id) if donation_item else '',
+                    'fundraiser_id': str(fundraiser.id) if fundraiser else '',
+                    'donor_name': name or '',
+                    'donor_email': email or '',
+                    'donor_phone': phone or '',
+                    'amount': str(amount),
+                    'user_id': str(request.user.id) if not is_guest else '',
+                },
+                'payment_intent_data': {
+                    'metadata': {
+                        'type': 'donation',
+                        'donation_item_id': str(donation_item.id) if donation_item else '',
+                        'fundraiser_id': str(fundraiser.id) if fundraiser else '',
+                    },
+                },
+            }
+
+            if email:
+                checkout_kwargs['customer_email'] = email
+            if not is_guest:
+                checkout_kwargs['client_reference_id'] = str(request.user.id)
+
+            checkout_session = stripe.checkout.Session.create(**checkout_kwargs)
+
+            # Pre-create unpaid donation record (NO cart, NO ShipStation)
+            Donation.objects.create(
+                user=request.user if not is_guest else None,
+                donation_item=donation_item,
+                fundraiser=fundraiser,
+                amount=amount,
+                quantity=1,
+                name=name,
+                email=email,
+                phone=phone,
+                stripe_session_id=checkout_session.id,
+                is_paid=False,
+            )
+
+            return Response({'sessionId': checkout_session.id, 'url': checkout_session.url}, status=status.HTTP_200_OK)
+        except Exception as e:
+            write_checkout_log("CreateDonationCheckoutSessionView", request, error=f"Exception: {str(e)}")
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 class ProductReviewListView(APIView):
     permission_classes = [permissions.AllowAny]
@@ -934,13 +1166,33 @@ def calculate_dashboard_metrics(filters_dict):
         chart_labels.append(day.strftime('%b %d'))
         chart_values.append(day_sales)
 
-    total_donations = 0.0
+    donations_qs = Donation.objects.filter(is_paid=True)
+    if start_date_str:
+        try:
+            donations_qs = donations_qs.filter(created_at__gte=start_date)
+        except Exception:
+            pass
+    if end_date_str:
+        try:
+            donations_qs = donations_qs.filter(created_at__lt=end_date)
+        except Exception:
+            pass
+    if selected_campaign:
+        donations_qs = donations_qs.filter(fundraiser__event_id=selected_campaign)
+    if selected_org:
+        donations_qs = donations_qs.filter(fundraiser__event__type_id=selected_org)
+
+    total_donations = sum(float(d.amount) for d in donations_qs)
 
     event_sales = sum_sales(paid_orders.filter(fundraiser__isnull=False))
     non_event_sales = sum_sales(paid_orders.filter(fundraiser__isnull=True))
 
-    owed_to_organizations = event_sales * 0.5
-    treats_island_revenue = (event_sales * 0.5) + non_event_sales
+    event_donations = sum(float(d.amount) for d in donations_qs.filter(fundraiser__isnull=False))
+    non_event_donations = sum(float(d.amount) for d in donations_qs.filter(fundraiser__isnull=True))
+
+    # Product sales split 50/50, donations split 75% Treats Island and 25% Organization
+    owed_to_organizations = (event_sales * 0.5) + (event_donations * 0.25)
+    treats_island_revenue = (event_sales * 0.5) + non_event_sales + (event_donations * 0.75) + non_event_donations
 
     # Campaigns (Events) counts
     events_filtered = Event.objects.all()
@@ -989,6 +1241,14 @@ def calculate_dashboard_metrics(filters_dict):
             except Exception:
                 val = 0.0
             org_performance[org_name] = org_performance.get(org_name, 0.0) + val
+    for d in donations_qs:
+        if d.fundraiser and d.fundraiser.event and d.fundraiser.event.type:
+            org_name = d.fundraiser.event.type.name
+            try:
+                val = float(d.amount)
+            except Exception:
+                val = 0.0
+            org_performance[org_name] = org_performance.get(org_name, 0.0) + val
 
     top_orgs = sorted(org_performance.items(), key=lambda x: x[1], reverse=True)[:5]
 
@@ -1001,6 +1261,14 @@ def calculate_dashboard_metrics(filters_dict):
             except Exception:
                 val = 0.0
             part_performance[part_name] = part_performance.get(part_name, 0.0) + val
+    for d in donations_qs:
+        if d.fundraiser and d.fundraiser.user:
+            part_name = d.fundraiser.user.full_name or d.fundraiser.user.phone
+            try:
+                val = float(d.amount)
+            except Exception:
+                val = 0.0
+            part_performance[part_name] = part_performance.get(part_name, 0.0) + val
 
     top_participants = sorted(part_performance.items(), key=lambda x: x[1], reverse=True)[:5]
 
@@ -1010,6 +1278,9 @@ def calculate_dashboard_metrics(filters_dict):
         recent_activity.append(f"New campaign created: {e.name or 'Event ' + str(e.id)}")
     for o in Order.objects.order_by('-id')[:2]:
         recent_activity.append(f"New order placed for {o.product.name}")
+    for d in Donation.objects.filter(is_paid=True).order_by('-id')[:2]:
+        donor_name = d.name or "A supporter"
+        recent_activity.append(f"{donor_name} donated ${d.amount}")
 
     return {
         'organizations': organizations,

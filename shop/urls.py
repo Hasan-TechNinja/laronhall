@@ -17,6 +17,9 @@ urlpatterns = [
     path('orders/', views.OrderView.as_view(), name='orders'),
     path('products/<slug:slug>/reviews/', views.ProductReviewListView.as_view(), name='product-reviews'),
     path('reviews/', views.LatestReview.as_view(), name='latest-reviews'),
+    path('donations/items/', views.DonationItemListView.as_view(), name='donation-items'),
+    path('donations/items/<slug:slug>/', views.DonationItemDetailView.as_view(), name='donation-item-detail'),
+    path('donations/checkout/', views.CreateDonationCheckoutSessionView.as_view(), name='donation-checkout'),
     path('shipstation/webhook/', views.ShipStationWebhookView.as_view(), name='shipstation-webhook'),
     path('admin/dashboard/', views.AdminDashboardAPIView.as_view(), name='api-admin-dashboard'),
 ]
