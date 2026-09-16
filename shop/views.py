@@ -386,7 +386,8 @@ class CreateCheckoutSessionView(APIView):
             customer = create_stripe_customer(address, name, email, phone)
             
             shop_id = next((f.id for _, _, f in order_items_to_create if f), None)
-            success_url = 'https://treatsislandgo.com/success?session_id={CHECKOUT_SESSION_ID}'
+            # success_url = 'https://treatsislandgo.com/success?session_id={CHECKOUT_SESSION_ID}'
+            success_url = 'http://localhost:5173/success?session_id={CHECKOUT_SESSION_ID}'
             if shop_id:
                 success_url += f'&shop_id={shop_id}'
 
