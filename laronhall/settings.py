@@ -228,6 +228,8 @@ ADMIN_EMAIL = 'hasantechninja@gmail.com'
 STRIPE_SECRET_KEY = config('STRIPE_SECRET_KEY', default='')
 STRIPE_PUBLISHABLE_KEY = config('STRIPE_PUBLISHABLE_KEY', default='')
 STRIPE_WEBHOOK_SECRET = config('STRIPE_WEBHOOK_SECRET', default='')
+PAYMENT_SUCCESS_URL = config('PAYMENT_SUCCESS_URL', default='https://treatsislandgo.com/success')
+PAYMENT_CANCEL_URL = config('PAYMENT_CANCEL_URL', default='https://treatsislandgo.com/cancel')
 
 # Smarty US address verification
 SMARTY_AUTH_ID = config('SMARTY_AUTH_ID', default='930f6a62-2b48-9b37-b4f7-70417f0483ec')

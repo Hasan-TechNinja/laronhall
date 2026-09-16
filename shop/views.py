@@ -18,6 +18,7 @@ from django.db import transaction
 import uuid
 import os
 import datetime
+from urllib.parse import urlparse
 from .utils import AddressValidationError, validate_us_address
 
 def write_checkout_log(view_name, request, error=None):
@@ -36,6 +37,29 @@ def write_checkout_log(view_name, request, error=None):
         pass
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
+
+
+def get_payment_success_url(extra_params=None):
+    raw_url = getattr(settings, 'PAYMENT_SUCCESS_URL', 'https://treatsislandgo.com/success').strip()
+    if raw_url.endswith('/'):
+        raw_url = raw_url[:-1]
+
+    parsed = urlparse(raw_url)
+    if not parsed.path or parsed.path == '':
+        raw_url = f"{raw_url}/success"
+
+    separator = '&' if '?' in raw_url else '?'
+    success_url = f"{raw_url}{separator}session_id={{CHECKOUT_SESSION_ID}}"
+    if extra_params:
+        for k, v in extra_params.items():
+            if v is not None and v != '':
+                success_url += f"&{k}={v}"
+    return success_url
+
+
+def get_payment_cancel_url():
+    return getattr(settings, 'PAYMENT_CANCEL_URL', 'https://treatsislandgo.com/cancel')
+
 
 
 def create_stripe_customer(address, name=None, email=None, phone=None):
@@ -386,10 +410,10 @@ class CreateCheckoutSessionView(APIView):
             customer = create_stripe_customer(address, name, email, phone)
             
             shop_id = next((f.id for _, _, f in order_items_to_create if f), None)
-            # success_url = 'https://treatsislandgo.com/success?session_id={CHECKOUT_SESSION_ID}'
-            success_url = 'http://localhost:5173/success?session_id={CHECKOUT_SESSION_ID}'
+            params = {}
             if shop_id:
-                success_url += f'&shop_id={shop_id}'
+                params['shop_id'] = shop_id
+            success_url = get_payment_success_url(params)
 
             checkout_kwargs = {
                 'idempotency_key': idempotency_key,
@@ -397,7 +421,7 @@ class CreateCheckoutSessionView(APIView):
                 'line_items': line_items,
                 'mode': 'payment',
                 'success_url': success_url,
-                'cancel_url': 'https://treatsislandgo.com/cancel',
+                'cancel_url': get_payment_cancel_url(),
                 'customer': customer.id,
                 'metadata': address_session_metadata(address, name, email, phone),
                 'payment_intent_data': {
@@ -829,9 +853,10 @@ class GuestCheckoutSessionView(APIView):
         idempotency_key = request.data.get('idempotency_key', str(uuid.uuid4()))
         try:
             shop_id = next((fid for _, _, fid in order_items_to_create if fid), None)
-            success_url = 'https://treatsislandgo.com/success?session_id={CHECKOUT_SESSION_ID}'
+            params = {}
             if shop_id:
-                success_url += f'&shop_id={shop_id}'
+                params['shop_id'] = shop_id
+            success_url = get_payment_success_url(params)
 
             checkout_session = stripe.checkout.Session.create(
                 idempotency_key=idempotency_key,
@@ -839,7 +864,7 @@ class GuestCheckoutSessionView(APIView):
                 line_items=line_items,
                 mode='payment',
                 success_url=success_url,
-                cancel_url='https://treatsislandgo.com/cancel',
+                cancel_url=get_payment_cancel_url(),
                 customer=customer.id,
                 metadata=address_session_metadata(address, name, email, phone),
                 payment_intent_data={
@@ -964,9 +989,10 @@ class CreateDonationCheckoutSessionView(APIView):
         idempotency_key = request.data.get('idempotency_key', str(uuid.uuid4()))
 
         try:
-            success_url = 'https://treatsislandgo.com/success?session_id={CHECKOUT_SESSION_ID}&type=donation'
+            params = {'type': 'donation'}
             if fundraiser:
-                success_url += f'&shop_id={fundraiser.id}'
+                params['shop_id'] = fundraiser.id
+            success_url = get_payment_success_url(params)
 
             checkout_kwargs = {
                 'idempotency_key': idempotency_key,
@@ -974,7 +1000,7 @@ class CreateDonationCheckoutSessionView(APIView):
                 'line_items': line_items,
                 'mode': 'payment',
                 'success_url': success_url,
-                'cancel_url': 'https://treatsislandgo.com/cancel',
+                'cancel_url': get_payment_cancel_url(),
                 'metadata': {
                     'type': 'donation',
                     'donation_item_id': str(donation_item.id) if donation_item else '',

@@ -4,7 +4,7 @@ from unittest.mock import patch, MagicMock
 from decimal import Decimal
 from django.contrib.auth import get_user_model
 from shop.models import DonationItem, Donation, Cart
-from shop.views import finalize_donation, calculate_dashboard_metrics
+from shop.views import finalize_donation, calculate_dashboard_metrics, get_payment_success_url, get_payment_cancel_url
 from event.models import Event, OrganizationType, Fundraiser
 from django.utils import timezone
 
@@ -92,6 +92,7 @@ class DonationFeatureTests(TestCase):
         self.assertEqual(call_kwargs['line_items'][0]['quantity'], 1)
         self.assertEqual(call_kwargs['line_items'][0]['price_data']['unit_amount'], 2500)
         self.assertEqual(call_kwargs['metadata']['type'], 'donation')
+        self.assertIn(f"shop_id={self.fundraiser.id}", call_kwargs['success_url'])
 
         # Check Donation record was created in DB
         donation = Donation.objects.filter(stripe_session_id="cs_test_donation_123").first()
@@ -225,3 +226,52 @@ class DonationFeatureTests(TestCase):
         self.assertEqual(admin_instance.total_sales(self.event), "$200.00")
         self.assertEqual(admin_instance.amount_to_organizer(self.event), "$50.00") # 25% of 200
         self.assertEqual(admin_instance.to_treats_island(self.event), "$150.00") # 75% of 200
+
+    @patch('stripe.checkout.Session.retrieve')
+    def test_payment_success_returns_shop_id(self, mock_retrieve):
+        donation = Donation.objects.create(
+            donation_item=self.item1,
+            fundraiser=self.fundraiser,
+            amount=Decimal("50.00"),
+            stripe_session_id="cs_test_success_shop_id",
+            is_paid=False
+        )
+
+        mock_session = MagicMock()
+        mock_session.id = "cs_test_success_shop_id"
+        mock_session.payment_status = "paid"
+        mock_session.metadata = {
+            'type': 'donation',
+            'donation_item_id': str(self.item1.id),
+            'fundraiser_id': str(self.fundraiser.id),
+        }
+        mock_session.customer_details = MagicMock(name="Donor", email="donor@example.com", phone="123")
+        mock_session.client_reference_id = None
+        mock_retrieve.return_value = mock_session
+
+        url = reverse('payment-success')
+        response = self.client.post(url, data={'session_id': 'cs_test_success_shop_id'}, content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data['shop_id'], self.fundraiser.id)
+        self.assertEqual(data['fundraiser_id'], self.fundraiser.id)
+        self.assertEqual(data['type'], 'donation')
+
+    def test_get_payment_success_url_configurations(self):
+        from django.test import override_settings
+
+        with override_settings(PAYMENT_SUCCESS_URL='http://localhost:5173/success'):
+            url = get_payment_success_url({'shop_id': 10})
+            self.assertEqual(url, 'http://localhost:5173/success?session_id={CHECKOUT_SESSION_ID}&shop_id=10')
+
+        with override_settings(PAYMENT_SUCCESS_URL='http://localhost:5173/'):
+            url = get_payment_success_url({'type': 'donation', 'shop_id': 10})
+            self.assertEqual(url, 'http://localhost:5173/success?session_id={CHECKOUT_SESSION_ID}&type=donation&shop_id=10')
+
+        with override_settings(PAYMENT_SUCCESS_URL='https://treatsislandgo.com/success'):
+            url = get_payment_success_url()
+            self.assertEqual(url, 'https://treatsislandgo.com/success?session_id={CHECKOUT_SESSION_ID}')
+
+        with override_settings(PAYMENT_CANCEL_URL='http://localhost:5173/cancel'):
+            self.assertEqual(get_payment_cancel_url(), 'http://localhost:5173/cancel')
+
