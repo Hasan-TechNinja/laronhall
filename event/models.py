@@ -73,6 +73,21 @@ class Fundraiser(models.Model):
         verbose_name = "Popup Store"
         verbose_name_plural = "Popup Stores"
 
+    @property
+    def has_payout_setup(self):
+        return bool(self.user and self.user.stripe_connect_payouts_enabled)
+
+    @property
+    def stripe_connect_account_id(self):
+        return self.user.stripe_connect_account_id if self.user else None
+
+    @property
+    def total_creator_earnings(self):
+        from django.db.models import Sum
+        orders = self.orders.filter(is_paid=True)
+        res = orders.aggregate(total=Sum('creator_payout_amount'))['total']
+        return float(res) if res is not None else 0.0
+
     def __str__(self):
         user_name = self.user.full_name.strip() if (self.user and self.user.full_name and self.user.full_name.strip()) else (self.user.email if self.user else f"User {self.user_id}")
         store_display = self.name.strip() if (self.name and self.name.strip()) else f"{user_name}'s Store"

@@ -44,11 +44,12 @@ class CustomUserCreationForm(AdminUserCreationForm):
 
 class UserAdmin(BaseUserAdmin):
     add_form = CustomUserCreationForm
-    list_display = ('phone', 'email', 'full_name', 'is_staff')
-    list_filter = ('is_staff', 'is_superuser', 'is_active')
+    list_display = ('phone', 'email', 'full_name', 'stripe_connect_account_id', 'stripe_connect_payouts_enabled', 'is_staff')
+    list_filter = ('is_staff', 'is_superuser', 'is_active', 'stripe_connect_payouts_enabled')
     fieldsets = (
         (None, {'fields': ('phone', 'password')}),
         ('Personal Info', {'fields': ('full_name', 'email', 'image')}),
+        ('Stripe Connect Payouts', {'fields': ('stripe_connect_account_id', 'stripe_connect_onboarding_completed', 'stripe_connect_payouts_enabled')}),
         ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
         ('Important Dates', {'fields': ('last_login', 'date_joined')}),
     )

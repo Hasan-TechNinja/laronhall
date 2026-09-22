@@ -36,6 +36,11 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_active = models.BooleanField(default=False)
     date_joined = models.DateTimeField(auto_now_add=True)
 
+    # Stripe Connect Integration
+    stripe_connect_account_id = models.CharField(max_length=255, blank=True, null=True, db_index=True)
+    stripe_connect_onboarding_completed = models.BooleanField(default=False)
+    stripe_connect_payouts_enabled = models.BooleanField(default=False)
+
     objects = CustomUserManager()
 
     USERNAME_FIELD = 'phone'

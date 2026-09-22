@@ -308,7 +308,17 @@ class EventAdmin(admin.ModelAdmin):
 
 @admin.register(Fundraiser)
 class FundraiserAdmin(admin.ModelAdmin):
-    list_display = ('store_name', 'event_name', 'sales_and_goal', 'actions_buttons')
+    list_display = ('store_name', 'event_name', 'sales_and_goal', 'payout_status_display', 'actions_buttons')
+
+    def payout_status_display(self, obj):
+        if not obj or not obj.user:
+            return "No User"
+        if obj.user.stripe_connect_payouts_enabled:
+            return format_html('<span style="color:green; font-weight:bold;">Active</span>')
+        elif obj.user.stripe_connect_account_id:
+            return format_html('<span style="color:orange; font-weight:bold;">Pending Onboarding</span>')
+        return format_html('<span style="color:#888;">Not Connected</span>')
+    payout_status_display.short_description = "Payout Setup"
 
     list_filter = ('event', 'event__type', 'created_at', 'is_active')
     search_fields = ('name', 'user__email', 'user__full_name', 'event__name', 'event__code')

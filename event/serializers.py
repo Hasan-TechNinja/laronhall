@@ -213,6 +213,9 @@ class FundraiserSerializer(serializers.ModelSerializer):
     achieved = serializers.SerializerMethodField()
     user_profile = UserProfileMinSerializer(source='user', read_only=True)
     share_link = serializers.SerializerMethodField()
+    has_payout_setup = serializers.BooleanField(read_only=True)
+    stripe_connect_account_id = serializers.CharField(read_only=True)
+    total_creator_earnings = serializers.FloatField(read_only=True)
 
     class Meta:
         model = Fundraiser

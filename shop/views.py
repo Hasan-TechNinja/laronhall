@@ -502,6 +502,14 @@ class StripeWebhookView(APIView):
                     finalize_donation(session)
                 else:
                     finalize_order(session)
+            elif event['type'] == 'account.updated':
+                account = event['data']['object']
+                account_id = account.get('id') if isinstance(account, dict) else getattr(account, 'id', None)
+                if account_id:
+                    user = User.objects.filter(stripe_connect_account_id=account_id).first()
+                    if user:
+                        from .stripe_connect import sync_connect_account_status
+                        sync_connect_account_status(user)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -582,6 +590,11 @@ def finalize_order(session):
                     pass
             order.save()
             try:
+                from .stripe_connect import transfer_order_payout
+                transfer_order_payout(order)
+            except Exception:
+                pass
+            try:
                 from .shipstation import send_order_to_shipstation
                 send_order_to_shipstation(order)
             except Exception:
@@ -637,6 +650,11 @@ def finalize_order(session):
                 )
                 first_order = False
                 created_orders.append(order)
+                try:
+                    from .stripe_connect import transfer_order_payout
+                    transfer_order_payout(order)
+                except Exception:
+                    pass
                 try:
                     from .shipstation import send_order_to_shipstation
                     send_order_to_shipstation(order)
@@ -1435,4 +1453,99 @@ class AdminDashboardAPIView(APIView):
             'top_participants': metrics['top_participants'],
         }
         return Response(serialized_metrics, status=status.HTTP_200_OK)
+
+
+class StripeConnectOnboardingView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        """
+        Generates a hosted Stripe Express onboarding link for the authenticated shop creator.
+        """
+        from .stripe_connect import create_onboarding_link
+        return_url = request.data.get('return_url')
+        refresh_url = request.data.get('refresh_url')
+        try:
+            url = create_onboarding_link(request.user, return_url=return_url, refresh_url=refresh_url)
+            return Response({
+                'onboarding_url': url,
+                'account_id': request.user.stripe_connect_account_id,
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class StripeConnectStatusView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        """
+        Retrieves Stripe Connect account verification status and earnings summary.
+        """
+        from .stripe_connect import sync_connect_account_status
+        from django.db.models import Sum
+
+        if request.user.stripe_connect_account_id:
+            try:
+                status_data = sync_connect_account_status(request.user)
+            except Exception:
+                status_data = {
+                    "account_id": request.user.stripe_connect_account_id,
+                    "onboarding_completed": request.user.stripe_connect_onboarding_completed,
+                    "payouts_enabled": request.user.stripe_connect_payouts_enabled,
+                    "details_submitted": request.user.stripe_connect_onboarding_completed,
+                }
+        else:
+            status_data = {
+                "account_id": None,
+                "onboarding_completed": False,
+                "payouts_enabled": False,
+                "details_submitted": False,
+            }
+
+        user_orders = Order.objects.filter(fundraiser__user=request.user, is_paid=True)
+        total_earnings = user_orders.aggregate(total=Sum('creator_payout_amount'))['total'] or 0.0
+        pending_payouts = user_orders.filter(payout_status__in=['pending_onboarding', 'pending', 'failed']).aggregate(total=Sum('creator_payout_amount'))['total'] or 0.0
+        transferred_payouts = user_orders.filter(payout_status='transferred').aggregate(total=Sum('creator_payout_amount'))['total'] or 0.0
+
+        status_data.update({
+            'total_creator_earnings': float(total_earnings),
+            'pending_payout_amount': float(pending_payouts),
+            'transferred_amount': float(transferred_payouts),
+        })
+        return Response(status_data, status=status.HTTP_200_OK)
+
+
+class StripeConnectDashboardView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        """
+        Generates a direct login link to the Stripe Express dashboard.
+        """
+        from .stripe_connect import create_dashboard_login_link
+        try:
+            url = create_dashboard_login_link(request.user)
+            return Response({'dashboard_url': url}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class StripeConnectRetryPendingView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        """
+        Processes any accumulated pending payouts for the authenticated shop creator.
+        """
+        from .stripe_connect import process_pending_creator_payouts
+        if not request.user.stripe_connect_payouts_enabled:
+            return Response({'error': 'Stripe Connect payouts are not enabled for your account yet.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        result = process_pending_creator_payouts(request.user)
+        return Response({
+            'message': 'Pending payouts processed',
+            **result
+        }, status=status.HTTP_200_OK)
+
 

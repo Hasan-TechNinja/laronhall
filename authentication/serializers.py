@@ -6,7 +6,10 @@ class ProfileSerializer(serializers.ModelSerializer):
 
     class Meta: 
         model = User
-        fields = ['id', 'phone', 'full_name', 'email', 'image', 'is_event_running']
+        fields = [
+            'id', 'phone', 'full_name', 'email', 'image', 'is_event_running',
+            'stripe_connect_account_id', 'stripe_connect_onboarding_completed', 'stripe_connect_payouts_enabled'
+        ]
 
     def get_is_event_running(self, obj):
         from event.models import Event

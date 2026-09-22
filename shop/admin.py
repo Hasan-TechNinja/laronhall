@@ -39,11 +39,23 @@ class ProductAdmin(admin.ModelAdmin):
 
 
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ('id','user', 'product', 'quantity', 'email','phone', 'name','address','city','state', 'country', 'tracking_number', 'carrier', 'shipment_status')
-    list_filter = ('user', 'product', 'quantity', 'shipment_status', 'carrier')
-    search_fields = ('user__phone', 'user__email', 'product__name', 'email', 'name', 'tracking_number')
+    list_display = ('id', 'user', 'product', 'quantity', 'is_paid', 'creator_payout_amount', 'treats_island_amount', 'payout_status', 'stripe_transfer_id', 'shipment_status', 'created_at')
+    list_filter = ('is_paid', 'payout_status', 'shipment_status', 'product')
+    search_fields = ('user__phone', 'user__email', 'product__name', 'email', 'name', 'tracking_number', 'stripe_transfer_id', 'stripe_session_id')
     ordering = ('-created_at',)
-    list_select_related = ('user', 'product', 'fundraiser')
+    list_select_related = ('user', 'product', 'fundraiser', 'fundraiser__user')
+    actions = ['retry_payouts']
+
+    @admin.action(description="Retry / Process Stripe Connect Payout for selected orders")
+    def retry_payouts(self, request, queryset):
+        from .stripe_connect import transfer_order_payout
+        success_count = 0
+        for order in queryset:
+            if order.is_paid:
+                transfer_order_payout(order)
+                if order.payout_status == 'transferred':
+                    success_count += 1
+        self.message_user(request, f"Successfully processed payouts for {success_count} orders.")
 
     def lookup_allowed(self, lookup, value, request=None):
         if lookup in ('fundraiser__event__id__exact', 'fundraiser__event__id', 'fundraiser__id__exact', 'fundraiser__id'):
