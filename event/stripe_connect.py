@@ -54,14 +54,15 @@ def get_or_create_connect_account(user):
         "capabilities": {
             "transfers": {"requested": True},
         },
-        # Setting business_type here so Stripe skips the "What type of
-        # business do you run?" selection screen.
+        # Setting business_type here so Stripe skips the
+        # "What type of business do you run?" selection screen.
         "business_type": "individual",
-        # Pre-fill a minimal business profile so Stripe skips the
-        # professional/business details screen.
+        # Pre-fill MCC + product_description only — do NOT include "url".
+        # When a URL is provided, Stripe still shows the "Business details"
+        # screen asking the user to confirm/enter their website.
+        # With only mcc + product_description, that screen is skipped.
         "business_profile": {
-            "mcc": "8398",          # Charitable / social-service organisations
-            "url": getattr(settings, "FRONTEND_URL", "https://treatsislandgo.com"),
+            "mcc": "8398",   # Charitable / social-service organisations
             "product_description": "Event fundraiser payout recipient",
         },
         "settings": {
@@ -80,16 +81,20 @@ def get_or_create_connect_account(user):
         account_data["email"] = user.email
 
     # Pre-fill individual name so Stripe skips the name entry screen.
-    name_parts = (user.full_name or "").strip().split(maxsplit=1)
+    # Split on whitespace: first word → first_name, rest → last_name.
+    raw_name = (user.full_name or "").strip()
+    name_parts = raw_name.split(maxsplit=1)
     individual = {}
     if name_parts:
         individual["first_name"] = name_parts[0]
-    if len(name_parts) == 2:
-        individual["last_name"] = name_parts[1]
+        # If only one word, repeat it as last_name so Stripe doesn't show
+        # a blank last-name field asking the user to fill it in.
+        individual["last_name"] = name_parts[1] if len(name_parts) == 2 else name_parts[0]
     if user.email:
         individual["email"] = user.email
     # NOTE: do NOT pass individual["phone"] — Stripe validates it against
     # the account country (US), which rejects non-US numbers (e.g. +880 BD).
+
 
     if individual:
         account_data["individual"] = individual
