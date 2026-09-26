@@ -219,7 +219,7 @@ class EventCreateInitView(APIView):
         from authentication.emails import send_event_created_admin_email
         send_event_created_admin_email(event)
         
-        serializer = EventSerializer(event)
+        serializer = EventSerializer(event, context={'request': request})
         return Response({'message': 'Event initialized', 'event': serializer.data}, status=status.HTTP_201_CREATED)
 
 
@@ -274,7 +274,7 @@ class EventUpdateView(APIView):
                 event.payout_manager = event.creator.email or event.creator.username
 
         event.save()
-        serializer = EventSerializer(event)
+        serializer = EventSerializer(event, context={'request': request})
         return Response({'message': 'Event updated successfully', 'event': serializer.data}, status=status.HTTP_200_OK)
 
 
@@ -287,7 +287,7 @@ class EventDetailView(APIView):
         except Event.DoesNotExist:
             return Response({'error': 'Event not found'}, status=status.HTTP_404_NOT_FOUND)
 
-        serializer = EventSerializer(event)
+        serializer = EventSerializer(event, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
@@ -313,7 +313,7 @@ class MyEventsView(APIView):
             participants=request.user,
             end_date__gte=timezone.now()
         ).order_by('-start_date')
-        serializer = EventSerializer(events, many=True)
+        serializer = EventSerializer(events, many=True, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
@@ -324,7 +324,7 @@ class MyEventsHistoryView(APIView):
         events = Event.objects.filter(
             participants=request.user
         ).order_by('-end_date')
-        serializer = EventSerializer(events, many=True)
+        serializer = EventSerializer(events, many=True, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
@@ -560,7 +560,7 @@ class EventExtendView(APIView):
         event.duration = 7
         event.save()
         
-        serializer = EventSerializer(event)
+        serializer = EventSerializer(event, context={'request': request})
         return Response({'message': 'Event extended successfully', 'event': serializer.data}, status=status.HTTP_200_OK)
 
 
