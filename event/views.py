@@ -47,11 +47,20 @@ class StripeConnectOnboardingView(APIView):
     def post(self, request):
         from event.stripe_connect import create_banking_onboarding_link
 
+        # Resolve the real client IP (handles reverse-proxy X-Forwarded-For)
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        user_ip = (
+            x_forwarded_for.split(',')[0].strip()
+            if x_forwarded_for
+            else request.META.get('REMOTE_ADDR')
+        )
+
         try:
             url = create_banking_onboarding_link(
                 request.user,
                 return_url=request.data.get('return_url'),
                 refresh_url=request.data.get('refresh_url'),
+                user_ip=user_ip,
             )
             return Response({
                 'onboarding_url': url,

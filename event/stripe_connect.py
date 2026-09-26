@@ -31,9 +31,10 @@ def get_or_create_connect_account(user):
     Retrieve an existing Stripe Express account for the event creator or
     create a new one with only the ``transfers`` capability.
 
-    We pre-fill as much identity data as we have so Stripe's hosted
-    onboarding skips social / profile screens and drops the creator
-    straight onto bank-account entry.
+    We pre-fill business_profile, tos_acceptance, and individual name
+    server-side so Stripe's hosted onboarding skips the business type,
+    professional details, and personal details screens — leaving only
+    the bank account / payout entry step.
     """
     if user.stripe_connect_account_id:
         try:
@@ -53,9 +54,17 @@ def get_or_create_connect_account(user):
         "capabilities": {
             "transfers": {"requested": True},
         },
+        # Setting business_type here so Stripe skips the "What type of
+        # business do you run?" selection screen.
         "business_type": "individual",
+        # Pre-fill a minimal business profile so Stripe skips the
+        # professional/business details screen.
+        "business_profile": {
+            "mcc": "8398",          # Charitable / social-service organisations
+            "url": getattr(settings, "FRONTEND_URL", "https://treatsislandgo.com"),
+            "product_description": "Event fundraiser payout recipient",
+        },
         "settings": {
-            # Ask Stripe to skip everything except payouts / bank account setup
             "payouts": {
                 "schedule": {"interval": "manual"},
             },
@@ -70,7 +79,7 @@ def get_or_create_connect_account(user):
     if user.email:
         account_data["email"] = user.email
 
-    # Pre-fill individual name so Stripe skips the name entry screen
+    # Pre-fill individual name so Stripe skips the name entry screen.
     name_parts = (user.full_name or "").strip().split(maxsplit=1)
     individual = {}
     if name_parts:
@@ -91,19 +100,24 @@ def get_or_create_connect_account(user):
     return account
 
 
-def create_banking_onboarding_link(user, return_url=None, refresh_url=None):
+def create_banking_onboarding_link(user, return_url=None, refresh_url=None, user_ip=None):
     """
     Generate a single-use Stripe hosted onboarding link for the event creator.
 
-    By pre-filling identity data and requesting ``collection_options`` that
-    focus on external account / payout info, Stripe will skip the social /
-    profile pages and go straight to bank account or debit-card entry.
+    Strategy to show ONLY the bank account entry screen:
+    - business_type and business_profile are pre-filled on account creation
+      → Stripe skips the business type / professional details screens.
+    - collection_options.fields = "currently_due" means Stripe only asks
+      for fields that are blocking payouts RIGHT NOW — the minimum set,
+      which after pre-filling is just the bank account / debit card.
+    - future_requirements = "omit" hides any future-facing questions.
 
     Parameters
     ----------
-    user        : The authenticated event-creator User instance.
-    return_url  : Where Stripe redirects after onboarding is complete.
-    refresh_url : Where Stripe redirects if the link expires.
+    user       : The authenticated event-creator User instance.
+    return_url : Where Stripe redirects after onboarding completes.
+    refresh_url: Where Stripe redirects if the link expires.
+    user_ip    : Client IP address (used to accept ToS server-side).
     """
     account = get_or_create_connect_account(user)
     default_base = getattr(settings, "FRONTEND_URL", "https://treatsislandgo.com")
@@ -113,15 +127,34 @@ def create_banking_onboarding_link(user, return_url=None, refresh_url=None):
     if not refresh_url:
         refresh_url = f"{default_base}/payout/refresh"
 
+    # Accept ToS server-side so that screen is skipped in the hosted UI.
+    # This is allowed when the user has agreed to your platform's own ToS
+    # which incorporates Stripe's Connected Account Agreement.
+    if user_ip:
+        try:
+            import time
+            stripe.Account.modify(
+                account.id,
+                tos_acceptance={
+                    "date": int(time.time()),
+                    "ip": user_ip,
+                    "service_agreement": "recipient",
+                },
+            )
+        except Exception as exc:
+            # Non-fatal — the hosted UI will show a ToS screen as fallback
+            logger.warning("Could not pre-accept ToS for account %s: %s", account.id, exc)
+
     account_link_data = {
         "account": account.id,
         "refresh_url": refresh_url,
         "return_url": return_url,
         "type": "account_onboarding",
-        # collection_options restricts what Stripe asks for.
-        # 'eventually_due' means only fields required for payouts are shown.
+        # "currently_due" = only fields blocking payouts right now.
+        # After pre-filling name/email/business_profile this should be
+        # just the external bank account / debit card.
         "collection_options": {
-            "fields": "eventually_due",
+            "fields": "currently_due",
             "future_requirements": "omit",
         },
     }
