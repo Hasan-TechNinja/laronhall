@@ -79,8 +79,8 @@ def get_or_create_connect_account(user):
         individual["last_name"] = name_parts[1]
     if user.email:
         individual["email"] = user.email
-    if user.phone:
-        individual["phone"] = str(user.phone)
+    # NOTE: do NOT pass individual["phone"] — Stripe validates it against
+    # the account country (US), which rejects non-US numbers (e.g. +880 BD).
 
     if individual:
         account_data["individual"] = individual
