@@ -246,10 +246,10 @@ class EventAdmin(admin.ModelAdmin):
         if not obj or not obj.creator:
             return "No Creator"
         if obj.creator.stripe_connect_payouts_enabled:
-            return format_html('<span style="color:green; font-weight:bold;">Active</span>')
+            return mark_safe('<span style="color:green; font-weight:bold;">Active</span>')
         elif obj.creator.stripe_connect_account_id:
-            return format_html('<span style="color:orange; font-weight:bold;">Pending Setup</span>')
-        return format_html('<span style="color:#888;">Not Connected</span>')
+            return mark_safe('<span style="color:orange; font-weight:bold;">Pending Setup</span>')
+        return mark_safe('<span style="color:#888;">Not Connected</span>')
     payout_status_display.short_description = "Payout Status"
 
     def to_treats_island(self, obj):
@@ -260,11 +260,15 @@ class EventAdmin(admin.ModelAdmin):
     to_treats_island.short_description = "Amount due to Treats Island"
 
     def view_stores(self, obj):
+        if not obj or not obj.id:
+            return "-"
         url = reverse('admin:event_fundraiser_changelist') + f'?event__id__exact={obj.id}'
         return format_html('<a class="button" href="{}">View Stores</a>', url)
     view_stores.short_description = "View Stores"
 
     def sales_report(self, obj):
+        if not obj or not obj.id:
+            return "-"
         try:
             url = reverse('admin:shop_report_changelist') + f'?fundraiser__event__id__exact={obj.id}'
         except Exception:
@@ -274,18 +278,22 @@ class EventAdmin(admin.ModelAdmin):
     sales_report.short_description = "Sales Report"
 
     def edit_event(self, obj):
+        if not obj or not obj.id:
+            return "-"
         url = reverse('admin:event_event_change', args=[obj.id])
         return format_html('<a class="button" href="{}">Edit</a>', url)
     edit_event.short_description = "Edit"
 
     def delete_event(self, obj):
+        if not obj or not obj.id:
+            return "-"
         url = reverse('admin:event_event_delete', args=[obj.id])
         return format_html('<a class="button" href="{}">Delete</a>', url)
     delete_event.short_description = "Delete"
 
 
     def send_email_action(self, obj):
-        if not obj.creator or not obj.creator.email:
+        if not obj or not obj.id or not obj.creator or not obj.creator.email:
             return "-"
         url = reverse('admin:event_event_send_email', args=[obj.id])
         return format_html(
@@ -429,6 +437,8 @@ class FundraiserAdmin(admin.ModelAdmin):
     sales_and_goal.admin_order_field = 'total_sales_annotated'
 
     def actions_buttons(self, obj):
+        if not obj or not obj.id:
+            return "-"
         from django.conf import settings
         domain = getattr(settings, 'FRONTEND_URL', 'https://treatsislandgo.com').rstrip('/')
         full_url = f"{domain}/store/{obj.id}" 
