@@ -3,6 +3,7 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework import permissions
 from .models import Event, OrganizationType, Fundraiser
 from .serializers import EventSerializer, FundraiserSerializer
 from django.utils import timezone
@@ -12,11 +13,146 @@ import random
 import string
 from notification.utils import send_push_notification
 
+
+class IsEventCreator(permissions.BasePermission):
+    def has_permission(self, request, view):
+        return bool(
+            request.user
+            and request.user.is_authenticated
+            and Event.objects.filter(creator=request.user).exists()
+        )
+
 def generate_unique_code():
     while True:
         code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
         if not Event.objects.filter(code=code).exists():
             return code
+
+
+class StripeConnectOnboardingView(APIView):
+    """
+    POST  /events/connect/onboard/
+    POST  /events/connect/banking/
+
+    Returns a Stripe-hosted onboarding URL scoped to banking / payout
+    details only.  Personal / social profile data is pre-filled from the
+    user record so Stripe skips those screens.
+
+    Request body (all optional):
+      return_url  – where to redirect after onboarding completes
+      refresh_url – where to redirect if the link expires
+    """
+    permission_classes = [IsEventCreator]
+
+    def post(self, request):
+        from event.stripe_connect import create_banking_onboarding_link
+
+        try:
+            url = create_banking_onboarding_link(
+                request.user,
+                return_url=request.data.get('return_url'),
+                refresh_url=request.data.get('refresh_url'),
+            )
+            return Response({
+                'onboarding_url': url,
+                'account_id': request.user.stripe_connect_account_id,
+                'message': (
+                    'Open the onboarding_url to connect your bank account '
+                    'or debit card for payouts.'
+                ),
+            }, status=status.HTTP_200_OK)
+        except Exception as error:
+            return Response({'error': str(error)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class StripeConnectStatusView(APIView):
+    """
+    GET /events/connect/status/
+
+    Returns the current payout / banking setup status for the event creator
+    along with a summary of earnings.
+    """
+    permission_classes = [IsEventCreator]
+
+    def get(self, request):
+        from django.db.models import Sum
+        from shop.models import Order
+        from event.stripe_connect import sync_connect_account_status
+
+        try:
+            status_data = sync_connect_account_status(request.user)
+        except Exception:
+            status_data = {
+                'account_id': request.user.stripe_connect_account_id,
+                'onboarding_completed': request.user.stripe_connect_onboarding_completed,
+                'payouts_enabled': request.user.stripe_connect_payouts_enabled,
+                'details_submitted': request.user.stripe_connect_onboarding_completed,
+                'external_account': None,
+            }
+
+        user_orders = Order.objects.filter(
+            fundraiser__event__creator=request.user, is_paid=True
+        )
+        status_data.update({
+            'total_creator_earnings': float(
+                user_orders.aggregate(total=Sum('creator_payout_amount'))['total'] or 0
+            ),
+            'pending_payout_amount': float(
+                user_orders.filter(
+                    payout_status__in=['pending_onboarding', 'pending', 'failed']
+                ).aggregate(total=Sum('creator_payout_amount'))['total'] or 0
+            ),
+            'transferred_amount': float(
+                user_orders.filter(
+                    payout_status='transferred'
+                ).aggregate(total=Sum('creator_payout_amount'))['total'] or 0
+            ),
+        })
+        return Response(status_data, status=status.HTTP_200_OK)
+
+
+class StripeConnectDashboardView(APIView):
+    """
+    POST /events/connect/dashboard/
+
+    Returns a single-use Stripe dashboard login link so the event creator
+    can view payouts and update their bank account details directly.
+    """
+    permission_classes = [IsEventCreator]
+
+    def post(self, request):
+        from event.stripe_connect import create_dashboard_login_link
+
+        try:
+            url = create_dashboard_login_link(request.user)
+            return Response({'dashboard_url': url}, status=status.HTTP_200_OK)
+        except Exception as error:
+            return Response({'error': str(error)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class StripeConnectRetryPendingView(APIView):
+    """
+    POST /events/connect/retry-pending/
+
+    Retries any payout transfers that previously failed or were queued
+    while the creator's banking setup was incomplete.
+    """
+    permission_classes = [IsEventCreator]
+
+    def post(self, request):
+        from event.stripe_connect import process_pending_creator_payouts
+
+        if not request.user.stripe_connect_payouts_enabled:
+            return Response({
+                'error': 'Banking setup is not complete yet. '
+                         'Please finish your bank account / payout setup first.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        result = process_pending_creator_payouts(request.user)
+        return Response(
+            {'message': 'Pending payouts processed', **result},
+            status=status.HTTP_200_OK,
+        )
 
 class EventCreateInitView(APIView):
     permission_classes = [IsAuthenticated]
@@ -165,7 +301,7 @@ class EventDetailedView(APIView):
             return Response({'error': 'Event not found'}, status=status.HTTP_404_NOT_FOUND)
 
         from .serializers import EventDetailedSerializer
-        serializer = EventDetailedSerializer(event)
+        serializer = EventDetailedSerializer(event, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 

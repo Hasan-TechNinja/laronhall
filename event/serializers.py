@@ -32,6 +32,9 @@ class EventSerializer(serializers.ModelSerializer):
     total_achieved = serializers.SerializerMethodField()
     is_mine = serializers.SerializerMethodField()
     type_slug = serializers.CharField(source='type.slug', read_only=True)
+    has_payout_setup = serializers.BooleanField(read_only=True)
+    stripe_connect_account_id = serializers.CharField(read_only=True)
+    total_creator_earnings = serializers.FloatField(read_only=True)
 
     class Meta:
         model = Event
@@ -136,10 +139,19 @@ class EventDetailedSerializer(serializers.ModelSerializer):
     status = serializers.SerializerMethodField()
     total_achieved = serializers.SerializerMethodField()
     is_mine = serializers.SerializerMethodField()
+    has_payout_setup = serializers.BooleanField(read_only=True)
+    stripe_connect_account_id = serializers.CharField(read_only=True)
+    total_creator_earnings = serializers.FloatField(read_only=True)
     
     class Meta:
         model = Event
-        fields = ['id', 'name', 'organizer_name', 'start_date', 'end_date', 'category_name', 'starts_in', 'code', 'duration', 'is_active', 'min_estimated_earning', 'max_estimated_earning', 'estimated_participants', 'status', 'total_achieved', 'is_mine', 'payout_manager']
+        fields = [
+            'id', 'name', 'organizer_name', 'start_date', 'end_date', 'category_name',
+            'starts_in', 'code', 'duration', 'is_active', 'min_estimated_earning',
+            'max_estimated_earning', 'estimated_participants', 'status', 'total_achieved',
+            'is_mine', 'payout_manager', 'has_payout_setup', 'stripe_connect_account_id',
+            'total_creator_earnings'
+        ]
 
     def get_is_mine(self, obj):
         request = self.context.get('request')
@@ -213,9 +225,6 @@ class FundraiserSerializer(serializers.ModelSerializer):
     achieved = serializers.SerializerMethodField()
     user_profile = UserProfileMinSerializer(source='user', read_only=True)
     share_link = serializers.SerializerMethodField()
-    has_payout_setup = serializers.BooleanField(read_only=True)
-    stripe_connect_account_id = serializers.CharField(read_only=True)
-    total_creator_earnings = serializers.FloatField(read_only=True)
 
     class Meta:
         model = Fundraiser

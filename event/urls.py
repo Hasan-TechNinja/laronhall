@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+
 urlpatterns = [
     path('organization-types/', views.OrganizationTypeListView.as_view(), name='organization-types'),
     path('create/', views.EventCreateInitView.as_view(), name='event-create'),
@@ -21,4 +22,10 @@ urlpatterns = [
     path('<int:id>/delete/', views.EventDeleteView.as_view(), name='event-delete'),
     path('<int:event_id>/leaderboard/', views.EventLeaderboardView.as_view(), name='event-leaderboard'),
     path('fundraiser/<int:id>/supporters/', views.FundraiserSupporterListView.as_view(), name='fundraiser-supporters'),
+    # Event Creator Payout / Connect Endpoints
+    path('connect/banking/', views.StripeConnectOnboardingView.as_view(), name='event-connect-banking'),
+    path('connect/status/', views.StripeConnectStatusView.as_view(), name='event-connect-status'),
+    path('connect/onboard/', views.StripeConnectOnboardingView.as_view(), name='event-connect-onboard'),
+    path('connect/dashboard/', views.StripeConnectDashboardView.as_view(), name='event-connect-dashboard'),
+    path('connect/retry-pending/', views.StripeConnectRetryPendingView.as_view(), name='event-connect-retry-pending'),
 ]

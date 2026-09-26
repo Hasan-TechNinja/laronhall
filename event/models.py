@@ -41,6 +41,21 @@ class Event(models.Model):
     end_thank_you_sent = models.BooleanField(default=False)
     banking_details_reminder_sent = models.BooleanField(default=False)
 
+    @property
+    def has_payout_setup(self):
+        return bool(self.creator and self.creator.stripe_connect_payouts_enabled)
+
+    @property
+    def stripe_connect_account_id(self):
+        return self.creator.stripe_connect_account_id if self.creator else None
+
+    @property
+    def total_creator_earnings(self):
+        from django.db.models import Sum
+        from shop.models import Order
+        res = Order.objects.filter(fundraiser__event=self, is_paid=True).aggregate(total=Sum('creator_payout_amount'))['total']
+        return float(res) if res is not None else 0.0
+
     class Meta:
         verbose_name = "Campaign"
         verbose_name_plural = "Campaigns"
@@ -72,21 +87,6 @@ class Fundraiser(models.Model):
         unique_together = ('user', 'event')
         verbose_name = "Popup Store"
         verbose_name_plural = "Popup Stores"
-
-    @property
-    def has_payout_setup(self):
-        return bool(self.user and self.user.stripe_connect_payouts_enabled)
-
-    @property
-    def stripe_connect_account_id(self):
-        return self.user.stripe_connect_account_id if self.user else None
-
-    @property
-    def total_creator_earnings(self):
-        from django.db.models import Sum
-        orders = self.orders.filter(is_paid=True)
-        res = orders.aggregate(total=Sum('creator_payout_amount'))['total']
-        return float(res) if res is not None else 0.0
 
     def __str__(self):
         user_name = self.user.full_name.strip() if (self.user and self.user.full_name and self.user.full_name.strip()) else (self.user.email if self.user else f"User {self.user_id}")

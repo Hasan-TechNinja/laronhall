@@ -61,12 +61,12 @@ class Order(models.Model):
     # Stripe Connect 50/50 Payout Tracking
     PAYOUT_STATUS_CHOICES = (
         ('pending', 'Pending Payment'),
-        ('pending_onboarding', 'Pending Shop Creator Onboarding'),
-        ('transferred', 'Transferred to Creator'),
-        ('not_applicable', 'Not Applicable (No Fundraiser Shop)'),
+        ('pending_onboarding', 'Pending Event Creator Banking Setup'),
+        ('transferred', 'Transferred to Event Creator'),
+        ('not_applicable', 'Not Applicable (No Event Creator)'),
         ('failed', 'Payout Transfer Failed'),
     )
-    creator_payout_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text="50% of product subtotal to shop creator")
+    creator_payout_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text="50% of product subtotal to event creator")
     treats_island_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text="50% of product subtotal to Treats Island")
     stripe_transfer_id = models.CharField(max_length=255, blank=True, null=True)
     payout_status = models.CharField(max_length=50, default='pending', choices=PAYOUT_STATUS_CHOICES)
@@ -88,9 +88,9 @@ class Order(models.Model):
             return 0.00
 
     def calculate_split_amounts(self):
-        """Calculates 50% split for shop creator and 50% for Treats Island"""
+        """Calculates 50% split for event creator and 50% for Treats Island"""
         subtotal = self.product_subtotal
-        if self.fundraiser:
+        if self.fundraiser and self.fundraiser.event and self.fundraiser.event.creator:
             creator_share = round(subtotal * 0.50, 2)
             treats_share = round(subtotal - creator_share, 2)
             return creator_share, treats_share

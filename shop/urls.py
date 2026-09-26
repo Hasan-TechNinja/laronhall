@@ -22,9 +22,4 @@ urlpatterns = [
     path('donations/checkout/', views.CreateDonationCheckoutSessionView.as_view(), name='donation-checkout'),
     path('shipstation/webhook/', views.ShipStationWebhookView.as_view(), name='shipstation-webhook'),
     path('admin/dashboard/', views.AdminDashboardAPIView.as_view(), name='api-admin-dashboard'),
-    # Stripe Connect Endpoints
-    path('connect/onboard/', views.StripeConnectOnboardingView.as_view(), name='stripe-connect-onboard'),
-    path('connect/status/', views.StripeConnectStatusView.as_view(), name='stripe-connect-status'),
-    path('connect/dashboard/', views.StripeConnectDashboardView.as_view(), name='stripe-connect-dashboard'),
-    path('connect/retry-pending/', views.StripeConnectRetryPendingView.as_view(), name='stripe-connect-retry-pending'),
 ]

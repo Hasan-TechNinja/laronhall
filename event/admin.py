@@ -61,6 +61,7 @@ class EventAdmin(admin.ModelAdmin):
         'current_status', 
         'total_sales', 
         'amount_to_organizer', 
+        'payout_status_display',
         'to_treats_island', 
         'view_stores', 
         'sales_report', 
@@ -241,6 +242,16 @@ class EventAdmin(admin.ModelAdmin):
         return f"${val:.2f}"
     amount_to_organizer.short_description = "Amount due to organization"
 
+    def payout_status_display(self, obj):
+        if not obj or not obj.creator:
+            return "No Creator"
+        if obj.creator.stripe_connect_payouts_enabled:
+            return format_html('<span style="color:green; font-weight:bold;">Active</span>')
+        elif obj.creator.stripe_connect_account_id:
+            return format_html('<span style="color:orange; font-weight:bold;">Pending Setup</span>')
+        return format_html('<span style="color:#888;">Not Connected</span>')
+    payout_status_display.short_description = "Payout Status"
+
     def to_treats_island(self, obj):
         sales = self.get_total_sales(obj)
         donations = self.get_total_donations(obj)
@@ -308,17 +319,7 @@ class EventAdmin(admin.ModelAdmin):
 
 @admin.register(Fundraiser)
 class FundraiserAdmin(admin.ModelAdmin):
-    list_display = ('store_name', 'event_name', 'sales_and_goal', 'payout_status_display', 'actions_buttons')
-
-    def payout_status_display(self, obj):
-        if not obj or not obj.user:
-            return "No User"
-        if obj.user.stripe_connect_payouts_enabled:
-            return format_html('<span style="color:green; font-weight:bold;">Active</span>')
-        elif obj.user.stripe_connect_account_id:
-            return format_html('<span style="color:orange; font-weight:bold;">Pending Onboarding</span>')
-        return format_html('<span style="color:#888;">Not Connected</span>')
-    payout_status_display.short_description = "Payout Setup"
+    list_display = ('store_name', 'event_name', 'sales_and_goal', 'actions_buttons')
 
     list_filter = ('event', 'event__type', 'created_at', 'is_active')
     search_fields = ('name', 'user__email', 'user__full_name', 'event__name', 'event__code')

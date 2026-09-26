@@ -43,7 +43,7 @@ class OrderAdmin(admin.ModelAdmin):
     list_filter = ('is_paid', 'payout_status', 'shipment_status', 'product')
     search_fields = ('user__phone', 'user__email', 'product__name', 'email', 'name', 'tracking_number', 'stripe_transfer_id', 'stripe_session_id')
     ordering = ('-created_at',)
-    list_select_related = ('user', 'product', 'fundraiser', 'fundraiser__user')
+    list_select_related = ('user', 'product', 'fundraiser', 'fundraiser__event', 'fundraiser__event__creator')
     actions = ['retry_payouts']
 
     @admin.action(description="Retry / Process Stripe Connect Payout for selected orders")
