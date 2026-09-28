@@ -198,8 +198,6 @@ class EventCreateInitView(APIView):
         code = code.upper()
 
         payout_manager = request.data.get('payout_manager')
-        if not payout_manager and request.user:
-            payout_manager = request.user.email or request.user.username
 
         event = Event.objects.create(
             name=team_name,
@@ -278,9 +276,6 @@ class EventUpdateView(APIView):
         payout_manager = request.data.get('payout_manager')
         if payout_manager is not None:
             event.payout_manager = payout_manager
-        elif not event.payout_manager:
-            if event.creator:
-                event.payout_manager = event.creator.email or event.creator.username
 
         event.save()
         serializer = EventSerializer(event, context={'request': request})
