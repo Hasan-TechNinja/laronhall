@@ -220,7 +220,8 @@ class EventCreateInitView(APIView):
             from authentication.emails import send_welcome_organizer_email
             send_welcome_organizer_email(
                 email=event.creator.email,
-                organizer_name=event.creator.full_name or event.creator.phone
+                organizer_name=event.creator.full_name or event.creator.phone,
+                event=event
             )
         
         from authentication.emails import send_event_created_admin_email
@@ -453,7 +454,8 @@ class FundraiserUpdateNameView(APIView):
                     email=fundraiser.event.creator.email,
                     organizer_name=org_name,
                     member_name=member_name,
-                    popup_store_name=name
+                    popup_store_name=name,
+                    event=fundraiser.event
                 )
 
             # Send confirmation email to Store Creator (Member)
@@ -464,7 +466,8 @@ class FundraiserUpdateNameView(APIView):
                     member_name=member_name,
                     popup_store_name=name,
                     event_name=fundraiser.event.name or fundraiser.event.code,
-                    store_url=store_url
+                    store_url=store_url,
+                    event=fundraiser.event
                 )
 
             # Send alert email to Admin

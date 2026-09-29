@@ -1,16 +1,72 @@
 from django.core.mail import send_mail
 from django.conf import settings
+from django.utils import timezone
 
 
-def send_welcome_organizer_email(email, organizer_name):
+def _fmt_datetime(dt):
+    """
+    Formats a datetime as e.g. 'Friday, July 24, 2026 at 10:00 AM UTC'.
+    Always timezone-aware (UTC when USE_TZ is on) so email dates/times are exact.
+    """
+    if not dt:
+        return "-"
+    if timezone.is_naive(dt):
+        dt = timezone.make_aware(dt, timezone.get_current_timezone())
+    else:
+        dt = timezone.localtime(dt)
+    return f"{dt.strftime('%A, %B %d, %Y')} at {dt.strftime('%I:%M %p').lstrip('0')} {dt.tzname() or 'UTC'}"
+
+
+def _fmt_date(dt):
+    """Formats a date as e.g. 'Friday, July 24, 2026'."""
+    if not dt:
+        return "-"
+    if timezone.is_naive(dt):
+        dt = timezone.make_aware(dt, timezone.get_current_timezone())
+    else:
+        dt = timezone.localtime(dt)
+    return dt.strftime('%A, %B %d, %Y')
+
+
+def _event_schedule(event):
+    """
+    Returns (start_str, end_str, duration_str) for an Event, computed from
+    start_date + duration so the email always shows a consistent schedule.
+    """
+    if not event:
+        return "-", "-", "-"
+    start = getattr(event, 'start_date', None)
+    end = getattr(event, 'end_date', None)
+    duration = getattr(event, 'duration', None)
+    if not end and start and duration:
+        from datetime import timedelta
+        end = start + timedelta(days=int(duration))
+    start_str = _fmt_datetime(start)
+    end_str = _fmt_datetime(end) if end else _fmt_date(start)
+    duration_str = f"{duration} Days" if duration else "-"
+    return start_str, end_str, duration_str
+
+
+def send_welcome_organizer_email(email, organizer_name, event=None):
     """
     Sends a welcome email to the Event Organizer upon creating an event.
     """
     subject = "Welcome to Treats Island Candy - Your Virtual Candy Fundraising Journey Begins Now!"
-    
+
+    start_str, end_str, duration_str = _event_schedule(event)
+    event_name = (event.name or event.code) if event else None
+    event_label = f" - {event_name}" if event_name else ""
+
     text_content = f"""Dear {organizer_name},
 
 We are thrilled to have you on board for your upcoming fundraising event! As a pioneer in the virtual candy fundraising landscape, we are committed to making this experience as sweet and enjoyable as possible.
+
+Your Event Schedule{event_label}:
+- Start: {start_str}
+- End: {end_str}
+- Duration: {duration_str}
+
+All dates and times shown are in UTC.
 
 Our unique selection of delicious chamoy candies are  sure to delight everyone involved. With our easy-to-navigate platform, we aim to make the process of fundraising as straightforward and effective as possible.
 
@@ -49,6 +105,15 @@ Treats Island GO Virtual Fundraising
                             <p style="margin: 0 0 16px 0; font-size: 16px; line-height: 24px; color: #475569;">
                                 We are thrilled to have you on board for your upcoming fundraising event! As a pioneer in the virtual candy fundraising landscape, we are committed to making this experience as sweet and enjoyable as possible.
                             </p>
+                            <div style="background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 16px 20px; margin: 0 0 20px 0;">
+                                <h3 style="margin: 0 0 10px 0; font-size: 16px; color: #059669; font-weight: 700;">🗓 Your Event Schedule{event_label}</h3>
+                                <table width="100%" cellpadding="4" cellspacing="0" style="font-size: 15px; color: #334155;">
+                                    <tr><td style="font-weight: 600; width: 30%;">Start:</td><td>{start_str}</td></tr>
+                                    <tr><td style="font-weight: 600;">End:</td><td>{end_str}</td></tr>
+                                    <tr><td style="font-weight: 600;">Duration:</td><td>{duration_str}</td></tr>
+                                </table>
+                                <p style="margin: 10px 0 0 0; font-size: 12px; color: #64748b;">All dates and times shown are in UTC.</p>
+                            </div>
                             <p style="margin: 0 0 16px 0; font-size: 16px; line-height: 24px; color: #475569;">
                                 Our unique selection of delicious chamoy candies are  sure to delight everyone involved. With our easy-to-navigate platform, we aim to make the process of fundraising as straightforward and effective as possible.
                             </p>
@@ -96,15 +161,26 @@ Treats Island GO Virtual Fundraising
         print(f"[EMAIL ERROR] Failed to send welcome email to {email}: {e}")
 
 
-def send_event_start_soon_email(email, organizer_name):
+def send_event_start_soon_email(email, organizer_name, event=None):
     """
     Sends a reminder email to the Event Organizer 1 hour before their event starts.
     """
     subject = "Get Ready! Your Virtual Candy Fundraising Event is Starting Soon"
-    
+
+    start_str, end_str, duration_str = _event_schedule(event)
+    event_name = (event.name or event.code) if event else None
+    event_label = f" - {event_name}" if event_name else ""
+
     text_content = f"""Dear {organizer_name},
 
 Your virtual candy fundraising event is about to start, and we hope you're as excited as we are! This is a wonderful opportunity to raise funds for your cause while sharing some delicious treats.
+
+Your Event Schedule{event_label}:
+- Start: {start_str}
+- End: {end_str}
+- Duration: {duration_str}
+
+All dates and times shown are in UTC.
 
 In preparation for the event, we recommend sharing the upcoming fundraiser with your community via social media, newsletters, and word of mouth. The more people who know about it, the more successful your event will be.
 
@@ -143,6 +219,15 @@ Treats Island GO Virtual Fundraising
                             <p style="margin: 0 0 16px 0; font-size: 16px; line-height: 24px; color: #475569;">
                                 Your virtual candy fundraising event is about to start, and we hope you're as excited as we are! This is a wonderful opportunity to raise funds for your cause while sharing some delicious treats.
                             </p>
+                            <div style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 16px 20px; margin: 0 0 20px 0;">
+                                <h3 style="margin: 0 0 10px 0; font-size: 16px; color: #1d4ed8; font-weight: 700;">🗓 Your Event Schedule{event_label}</h3>
+                                <table width="100%" cellpadding="4" cellspacing="0" style="font-size: 15px; color: #334155;">
+                                    <tr><td style="font-weight: 600; width: 30%;">Start:</td><td>{start_str}</td></tr>
+                                    <tr><td style="font-weight: 600;">End:</td><td>{end_str}</td></tr>
+                                    <tr><td style="font-weight: 600;">Duration:</td><td>{duration_str}</td></tr>
+                                </table>
+                                <p style="margin: 10px 0 0 0; font-size: 12px; color: #64748b;">All dates and times shown are in UTC.</p>
+                            </div>
                             <p style="margin: 0 0 16px 0; font-size: 16px; line-height: 24px; color: #475569;">
                                 In preparation for the event, we recommend sharing the upcoming fundraiser with your community via social media, newsletters, and word of mouth. The more people who know about it, the more successful your event will be.
                             </p>
@@ -190,13 +275,24 @@ Treats Island GO Virtual Fundraising
         print(f"[EMAIL ERROR] Failed to send event start soon email to {email}: {e}")
 
 
-def send_event_twenty_four_hour_reminder_email(email, organizer_name):
+def send_event_twenty_four_hour_reminder_email(email, organizer_name, event=None):
     """
     Sends a optimization tips email to the Event Organizer 24 hours after their event starts.
     """
     subject = "Tips to Boost Your Candy Fundraising Success"
-    
+
+    start_str, end_str, duration_str = _event_schedule(event)
+    event_name = (event.name or event.code) if event else None
+    event_label = f" - {event_name}" if event_name else ""
+
     text_content = f"""Dear {organizer_name},
+
+Your event is now underway! Here is your schedule for reference:
+- Started: {start_str}
+- Ends: {end_str}
+- Duration: {duration_str}
+
+All dates and times shown are in UTC.
 
 We're thrilled to see your enthusiasm for our virtual candy fundraising event! To help you make the most of this opportunity, we wanted to share a few strategies that can amplify your success:
 
@@ -238,6 +334,15 @@ Treats Island GO Virtual Fundraising
                     <tr>
                         <td style="padding: 40px 30px;">
                             <h2 style="margin-top: 0; margin-bottom: 20px; font-size: 20px; color: #1e293b; font-weight: 700;">Dear {organizer_name},</h2>
+                            <div style="background-color: #faf5ff; border: 1px solid #e9d5ff; border-radius: 8px; padding: 16px 20px; margin: 0 0 20px 0;">
+                                <h3 style="margin: 0 0 10px 0; font-size: 16px; color: #7e22ce; font-weight: 700;">🗓 Your Event Schedule{event_label}</h3>
+                                <table width="100%" cellpadding="4" cellspacing="0" style="font-size: 15px; color: #334155;">
+                                    <tr><td style="font-weight: 600; width: 30%;">Started:</td><td>{start_str}</td></tr>
+                                    <tr><td style="font-weight: 600;">Ends:</td><td>{end_str}</td></tr>
+                                    <tr><td style="font-weight: 600;">Duration:</td><td>{duration_str}</td></tr>
+                                </table>
+                                <p style="margin: 10px 0 0 0; font-size: 12px; color: #64748b;">All dates and times shown are in UTC.</p>
+                            </div>
                             <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 24px; color: #475569;">
                                 We're thrilled to see your enthusiasm for our virtual candy fundraising event! To help you make the most of this opportunity, we wanted to share a few strategies that can amplify your success:
                             </p>
@@ -308,15 +413,24 @@ Treats Island GO Virtual Fundraising
         print(f"[EMAIL ERROR] Failed to send 24h reminder email to {email}: {e}")
 
 
-def send_event_end_thank_you_email(email, organizer_name, organization_name):
+def send_event_end_thank_you_email(email, organizer_name, organization_name, event=None):
     """
     Sends a thank you email to the Event Organizer when an event ends.
     """
     subject = "Thank You for a Successful Virtual Candy Fundraising Event!"
-    
+
+    start_str, end_str, duration_str = _event_schedule(event)
+
     text_content = f"""Dear {organizer_name},
 
 We wanted to take a moment to express our heartfelt thanks for choosing {organization_name} for your recent virtual candy fundraising event. It's been a pleasure working with you, and we hope your experience was as sweet as the candies you've helped distribute!
+
+Your event schedule was:
+- Start: {start_str}
+- End: {end_str}
+- Duration: {duration_str}
+
+All dates and times shown are in UTC.
 
 Your hard work and dedication have made a significant impact on your cause, and we're delighted to have been a part of it.
 
@@ -352,6 +466,15 @@ Treats Island GO Virtual Fundraising
                     <tr>
                         <td style="padding: 40px 30px;">
                             <h2 style="margin-top: 0; margin-bottom: 20px; font-size: 20px; color: #1e293b; font-weight: 700;">Dear {organizer_name},</h2>
+                            <div style="background-color: #fdf2f8; border: 1px solid #fbcfe8; border-radius: 8px; padding: 16px 20px; margin: 0 0 20px 0;">
+                                <h3 style="margin: 0 0 10px 0; font-size: 16px; color: #be185d; font-weight: 700;">🗓 Your Event Schedule</h3>
+                                <table width="100%" cellpadding="4" cellspacing="0" style="font-size: 15px; color: #334155;">
+                                    <tr><td style="font-weight: 600; width: 30%;">Start:</td><td>{start_str}</td></tr>
+                                    <tr><td style="font-weight: 600;">End:</td><td>{end_str}</td></tr>
+                                    <tr><td style="font-weight: 600;">Duration:</td><td>{duration_str}</td></tr>
+                                </table>
+                                <p style="margin: 10px 0 0 0; font-size: 12px; color: #64748b;">All dates and times shown are in UTC.</p>
+                            </div>
                             <p style="margin: 0 0 16px 0; font-size: 16px; line-height: 24px; color: #475569;">
                                 We wanted to take a moment to express our heartfelt thanks for choosing <strong>{organization_name}</strong> for your recent virtual candy fundraising event. It's been a pleasure working with you, and we hope your experience was as sweet as the candies you've helped distribute!
                             </p>
@@ -402,15 +525,26 @@ Treats Island GO Virtual Fundraising
         print(f"[EMAIL ERROR] Failed to send end thank you email to {email}: {e}")
 
 
-def send_new_popup_alert_email(email, organizer_name, member_name, popup_store_name):
+def send_new_popup_alert_email(email, organizer_name, member_name, popup_store_name, event=None):
     """
     Sends an alert email to the Event Organizer when a participant creates a new pop-up store.
     """
     subject = "Exciting News! A New Pop-Up Store Has Been Created for Your Event"
-    
+
+    start_str, end_str, duration_str = _event_schedule(event)
+    event_name = (event.name or event.code) if event else None
+    event_label = f" - {event_name}" if event_name else ""
+
     text_content = f"""Dear {organizer_name},
 
 We're thrilled to share that one of your member participants {member_name}, has set up a pop-up store called {popup_store_name} to begin selling our delicious candies to their supporters! This is a significant step towards reaching your overall goal and every sale from each pop-up store will bring you one step closer to your fundraising target.
+
+Your Event Schedule{event_label}:
+- Start: {start_str}
+- End: {end_str}
+- Duration: {duration_str}
+
+All dates and times shown are in UTC.
 
 We encourage you to support and promote this new store among your community. You can share the news on your social media platforms, newsletters, and other communication channels. The more people who know about it, the more successful your fundraising event will be.
 
@@ -447,6 +581,15 @@ Treats Island GO Virtual Fundraising
                             <p style="margin: 0 0 16px 0; font-size: 16px; line-height: 24px; color: #475569;">
                                 We're thrilled to share that one of your member participants <strong>{member_name}</strong>, has set up a pop-up store called <strong>{popup_store_name}</strong> to begin selling our delicious candies to their supporters! This is a significant step towards reaching your overall goal and every sale from each pop-up store will bring you one step closer to your fundraising target.
                             </p>
+                            <div style="background-color: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 16px 20px; margin: 0 0 20px 0;">
+                                <h3 style="margin: 0 0 10px 0; font-size: 16px; color: #d97706; font-weight: 700;">🗓 Your Event Schedule{event_label}</h3>
+                                <table width="100%" cellpadding="4" cellspacing="0" style="font-size: 15px; color: #334155;">
+                                    <tr><td style="font-weight: 600; width: 30%;">Start:</td><td>{start_str}</td></tr>
+                                    <tr><td style="font-weight: 600;">End:</td><td>{end_str}</td></tr>
+                                    <tr><td style="font-weight: 600;">Duration:</td><td>{duration_str}</td></tr>
+                                </table>
+                                <p style="margin: 10px 0 0 0; font-size: 12px; color: #64748b;">All dates and times shown are in UTC.</p>
+                            </div>
                             <p style="margin: 0 0 16px 0; font-size: 16px; line-height: 24px; color: #475569;">
                                 We encourage you to support and promote this new store among your community. You can share the news on your social media platforms, newsletters, and other communication channels. The more people who know about it, the more successful your fundraising event will be.
                             </p>
@@ -491,15 +634,26 @@ Treats Island GO Virtual Fundraising
         print(f"[EMAIL ERROR] Failed to send new popup alert email to {email}: {e}")
 
 
-def send_event_banking_details_reminder_email(email, organizer_name):
+def send_event_banking_details_reminder_email(email, organizer_name, event=None):
     """
     Sends a banking details reminder email to the Event Organizer 2 days after campaign starts.
     """
     subject = "Action Required: Please Enter Your Payout Details to Avoid Delay"
-    
+
+    start_str, end_str, duration_str = _event_schedule(event)
+    event_name = (event.name or event.code) if event else None
+    event_label = f" - {event_name}" if event_name else ""
+
     text_content = f"""Dear {organizer_name},
 
 We hope your virtual candy fundraising campaign is going wonderfully!
+
+Your Event Schedule{event_label}:
+- Start: {start_str}
+- End: {end_str}
+- Duration: {duration_str}
+
+All dates and times shown are in UTC.
 
 To ensure a smooth and timely distribution of your fundraising profits when your event concludes, please take a moment to enter your banking details in your organizer dashboard. Providing this information now will help avoid any delays with your payout.
 
@@ -538,6 +692,15 @@ Treats Island Candy Virtual Fundraising
                             <p style="margin: 0 0 16px 0; font-size: 16px; line-height: 24px; color: #475569;">
                                 We hope your virtual candy fundraising campaign is going wonderfully!
                             </p>
+                            <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 16px 20px; margin: 0 0 20px 0;">
+                                <h3 style="margin: 0 0 10px 0; font-size: 16px; color: #b91c1c; font-weight: 700;">🗓 Your Event Schedule{event_label}</h3>
+                                <table width="100%" cellpadding="4" cellspacing="0" style="font-size: 15px; color: #334155;">
+                                    <tr><td style="font-weight: 600; width: 30%;">Start:</td><td>{start_str}</td></tr>
+                                    <tr><td style="font-weight: 600;">End:</td><td>{end_str}</td></tr>
+                                    <tr><td style="font-weight: 600;">Duration:</td><td>{duration_str}</td></tr>
+                                </table>
+                                <p style="margin: 10px 0 0 0; font-size: 12px; color: #64748b;">All dates and times shown are in UTC.</p>
+                            </div>
                             <p style="margin: 0 0 16px 0; font-size: 16px; line-height: 24px; color: #475569;">
                                 To ensure a smooth and timely distribution of your fundraising profits when your event concludes, please take a moment to enter your banking details in your organizer dashboard. Providing this information now will help avoid any delays with your payout.
                             </p>
@@ -590,7 +753,14 @@ def send_order_confirmation_email(email, customer_name, orders):
     Sends an order confirmation email to the customer.
     """
     subject = "Order Confirmation - Treats Island Candy"
-    
+
+    order_date_str = "-"
+    for order in orders:
+        placed = getattr(order, 'created_at', None)
+        if placed:
+            order_date_str = _fmt_datetime(placed)
+            break
+
     order_items_text = ""
     order_items_html = ""
     total = 0.0
@@ -643,6 +813,7 @@ def send_order_confirmation_email(email, customer_name, orders):
 Thank you for your order! Your purchase directly helps our fundraising efforts, and we are so grateful for your support.
 
 Here are your order details:
+Order Date/Time: {order_date_str}
 {order_items_text}
 Total Paid: ${total:.2f}
 
@@ -678,7 +849,8 @@ Treats Island Candy Team
                             </p>
                             
                             <div style="background-color: #f8fafc; border-radius: 8px; padding: 20px; margin: 24px 0;">
-                                <h3 style="margin: 0 0 16px 0; font-size: 16px; color: #1e293b;">Order Summary</h3>
+                                <h3 style="margin: 0 0 6px 0; font-size: 16px; color: #1e293b;">Order Summary</h3>
+                                <p style="margin: 0 0 12px 0; font-size: 14px; color: #64748b;">Order Date/Time: {order_date_str}</p>
                                 <table width="100%" cellpadding="0" cellspacing="0" style="font-size: 15px;">
                                     {order_items_html}
                                     <tr>
@@ -732,9 +904,7 @@ def send_event_created_admin_email(event):
     organizer_email = event.creator.email if event.creator else "-"
     organizer_phone = event.creator.phone if event.creator else "-"
     org_type = event.type.name if event.type else "-"
-    start_date_str = event.start_date.strftime("%B %d, %Y, %I:%M %p") if event.start_date else "-"
-    end_date_str = event.end_date.strftime("%B %d, %Y, %I:%M %p") if event.end_date else "-"
-    duration_str = f"{event.duration} Days" if event.duration else "-"
+    start_date_str, end_date_str, duration_str = _event_schedule(event)
     
     text_content = f"""Hello Admin,
 
@@ -747,6 +917,8 @@ Event Details:
 - Duration: {duration_str}
 - Start Date: {start_date_str}
 - End Date: {end_date_str}
+
+All dates and times shown are in UTC.
 
 Organizer Details:
 - Name: {organizer_name}
@@ -806,6 +978,9 @@ Treats Island GO Virtual Fundraising
                                     <tr>
                                         <td style="font-weight: 600;">End Date:</td>
                                         <td>{end_date_str}</td>
+                                    </tr>
+                                    <tr>
+                                        <td colspan="2" style="padding-top: 6px; font-size: 12px; color: #64748b;">All dates and times shown are in UTC.</td>
                                     </tr>
                                 </table>
                             </div>
@@ -874,6 +1049,7 @@ def send_popup_store_created_admin_email(fundraiser):
     event_code = event.code if event else "-"
     organizer_name = (event.creator.full_name or event.creator.phone) if event and event.creator else "-"
     organizer_email = event.creator.email if event and event.creator else "-"
+    start_date_str, end_date_str, duration_str = _event_schedule(event)
     goal_str = f"${fundraiser.goal:,.2f}" if fundraiser.goal else "$0.00"
     store_url = f"https://treatsislandgo.com/store/{fundraiser.id}"
 
@@ -894,7 +1070,12 @@ Store Creator (Member):
 Event Details:
 - Event: {event_name}
 - Event Code: {event_code}
+- Start: {start_date_str}
+- End: {end_date_str}
+- Duration: {duration_str}
 - Organizer: {organizer_name} ({organizer_email})
+
+All dates and times shown are in UTC.
 
 Best Regards,
 Treats Island GO Virtual Fundraising
@@ -974,6 +1155,21 @@ Treats Island GO Virtual Fundraising
                                         <td style="font-weight: 600;">Organizer:</td>
                                         <td>{organizer_name} ({organizer_email})</td>
                                     </tr>
+                                    <tr>
+                                        <td style="font-weight: 600;">Start:</td>
+                                        <td>{start_date_str}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight: 600;">End:</td>
+                                        <td>{end_date_str}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight: 600;">Duration:</td>
+                                        <td>{duration_str}</td>
+                                    </tr>
+                                    <tr>
+                                        <td colspan="2" style="padding-top: 6px; font-size: 12px; color: #64748b;">All dates and times shown are in UTC.</td>
+                                    </tr>
                                 </table>
                             </div>
                             
@@ -1006,16 +1202,28 @@ Treats Island GO Virtual Fundraising
         print(f"[EMAIL ERROR] Failed to send popup store created admin email: {e}")
 
 
-def send_popup_store_created_member_email(email, member_name, popup_store_name, event_name, store_url):
+def send_popup_store_created_member_email(email, member_name, popup_store_name, event_name, store_url, event=None):
     """
     Sends a confirmation email to the participant/member when their pop-up store is created.
     """
     subject = f"Your Pop-Up Store '{popup_store_name}' is Ready! - Treats Island Candy"
 
+    start_str, end_str, duration_str = _event_schedule(event)
+    schedule_block = ""
+    if event:
+        schedule_block = f"""
+Your Event Schedule:
+- Start: {start_str}
+- End: {end_str}
+- Duration: {duration_str}
+
+All dates and times shown are in UTC.
+"""
+
     text_content = f"""Dear {member_name},
 
 Congratulations! Your pop-up store '{popup_store_name}' for event '{event_name}' is now live and ready to take orders!
-
+{schedule_block}
 Here is your store link to share with supporters, friends, and family:
 {store_url}
 
@@ -1052,6 +1260,15 @@ Treats Island GO Virtual Fundraising
                             <p style="margin: 0 0 16px 0; font-size: 16px; line-height: 24px; color: #475569;">
                                 Congratulations! Your pop-up store <strong>{popup_store_name}</strong> for event <strong>{event_name}</strong> is now live and ready to take orders!
                             </p>
+                            {f'''<div style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 16px 20px; margin: 0 0 20px 0;">
+                                <h3 style="margin: 0 0 10px 0; font-size: 16px; color: #1d4ed8; font-weight: 700;">🗓 Your Event Schedule</h3>
+                                <table width="100%" cellpadding="4" cellspacing="0" style="font-size: 15px; color: #334155;">
+                                    <tr><td style="font-weight: 600; width: 30%;">Start:</td><td>{start_str}</td></tr>
+                                    <tr><td style="font-weight: 600;">End:</td><td>{end_str}</td></tr>
+                                    <tr><td style="font-weight: 600;">Duration:</td><td>{duration_str}</td></tr>
+                                </table>
+                                <p style="margin: 10px 0 0 0; font-size: 12px; color: #64748b;">All dates and times shown are in UTC.</p>
+                            </div>''' if event else ''}
                             
                             <div style="background-color: #ecfdf5; border-radius: 8px; padding: 20px; margin: 24px 0; border: 1px solid #a7f3d0; text-align: center;">
                                 <p style="margin: 0 0 10px 0; font-size: 14px; color: #065f46; font-weight: 600;">Your Pop-Up Store Link:</p>

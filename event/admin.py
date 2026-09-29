@@ -115,7 +115,8 @@ class EventAdmin(admin.ModelAdmin):
                 from authentication.emails import send_welcome_organizer_email
                 send_welcome_organizer_email(
                     email=obj.creator.email,
-                    organizer_name=obj.creator.full_name or obj.creator.phone
+                    organizer_name=obj.creator.full_name or obj.creator.phone,
+                    event=obj
                 )
             from authentication.emails import send_event_created_admin_email
             send_event_created_admin_email(obj)
@@ -502,7 +503,8 @@ class FundraiserAdmin(admin.ModelAdmin):
                     email=obj.event.creator.email,
                     organizer_name=org_name,
                     member_name=member_name,
-                    popup_store_name=obj.name or "Pop-Up Store"
+                    popup_store_name=obj.name or "Pop-Up Store",
+                    event=obj.event
                 )
             if obj.user and obj.user.email:
                 send_popup_store_created_member_email(
@@ -510,7 +512,8 @@ class FundraiserAdmin(admin.ModelAdmin):
                     member_name=member_name,
                     popup_store_name=obj.name or "Pop-Up Store",
                     event_name=obj.event.name or obj.event.code,
-                    store_url=store_url
+                    store_url=store_url,
+                    event=obj.event
                 )
             send_popup_store_created_admin_email(obj)
 
@@ -679,7 +682,8 @@ class OrganizationAdmin(admin.ModelAdmin):
                 from authentication.emails import send_welcome_organizer_email
                 send_welcome_organizer_email(
                     email=obj.creator.email,
-                    organizer_name=obj.creator.full_name or obj.creator.phone
+                    organizer_name=obj.creator.full_name or obj.creator.phone,
+                    event=obj
                 )
             from authentication.emails import send_event_created_admin_email
             send_event_created_admin_email(obj)
