@@ -1,10 +1,11 @@
 from django.test import TestCase
+from rest_framework.test import APITestCase
 from django.contrib.auth import get_user_model
 User = get_user_model()
 from django.urls import reverse
 from unittest.mock import patch
 
-class AuthenticationTests(TestCase):
+class AuthenticationTests(APITestCase):
     @patch('authentication.views.send_otp_phone')
     def test_send_otp_new_user(self, mock_send_otp):
         mock_send_otp.return_value = 'mock_sid'
@@ -82,4 +83,46 @@ class AuthenticationTests(TestCase):
         # Verify user remains inactive
         user.refresh_from_db()
         self.assertFalse(user.is_active)
+
+    def test_delete_account_authenticated_delete_method(self):
+        user = User.objects.create_user(phone='+8801580625257')
+        user.is_active = True
+        user.save()
+        self.client.force_authenticate(user=user)
+
+        url = reverse('delete-account')
+        response = self.client.delete(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['message'], 'Account deleted successfully.')
+        self.assertFalse(User.objects.filter(phone='+8801580625257').exists())
+
+    def test_delete_account_authenticated_post_method(self):
+        user = User.objects.create_user(phone='+8801580625257')
+        user.is_active = True
+        user.save()
+        self.client.force_authenticate(user=user)
+
+        url = reverse('delete-account')
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['message'], 'Account deleted successfully.')
+        self.assertFalse(User.objects.filter(phone='+8801580625257').exists())
+
+    def test_profile_delete_authenticated(self):
+        user = User.objects.create_user(phone='+8801580625257')
+        user.is_active = True
+        user.save()
+        self.client.force_authenticate(user=user)
+
+        url = reverse('profile')
+        response = self.client.delete(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['message'], 'Account deleted successfully.')
+        self.assertFalse(User.objects.filter(phone='+8801580625257').exists())
+
+    def test_delete_account_unauthenticated(self):
+        url = reverse('delete-account')
+        response = self.client.delete(url)
+        self.assertEqual(response.status_code, 401)
+
 

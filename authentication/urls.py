@@ -5,6 +5,7 @@ urlpatterns = [
     path('send-otp/', views.SendOTPView.as_view(), name='send-otp'),
     path('verify-otp/', views.VerifyOTPView.as_view(), name='verify-otp'),
     path('profile/', views.ProfileView.as_view(), name="profile"),
+    path('delete-account/', views.DeleteAccountView.as_view(), name='delete-account'),
     path('privacy-policy/', views.PrivacyPolicyView.as_view(), name='privacy-policy'),
     path('terms-and-condition/', views.TermsAndConditionView.as_view(), name='terms-and-condition'),
 ]
