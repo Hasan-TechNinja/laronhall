@@ -897,7 +897,7 @@ def send_event_created_admin_email(event):
     """
     Sends a notification email to the Admin when a new event is created.
     """
-    admin_email = getattr(settings, 'ADMIN_EMAIL', 'hasantechninja@gmail.com')
+    admin_email = getattr(settings, 'ADMIN_EMAIL', None) or getattr(settings, 'EMAIL_HOST_USER', None)
     subject = f"New Event Created: {event.name or event.code}"
     
     organizer_name = (event.creator.full_name or event.creator.phone) if event.creator else "Unknown"
@@ -1019,7 +1019,7 @@ Treats Island GO Virtual Fundraising
 </html>
 """
     try:
-        from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'Treats Island <hasantechninja@gmail.com>')
+        from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', None) or getattr(settings, 'EMAIL_HOST_USER', None)
         send_mail(
             subject=subject,
             message=text_content,
@@ -1036,7 +1036,7 @@ def send_popup_store_created_admin_email(fundraiser):
     """
     Sends a notification email to the Admin when a new pop-up store is created.
     """
-    admin_email = getattr(settings, 'ADMIN_EMAIL', 'hasantechninja@gmail.com')
+    admin_email = getattr(settings, 'ADMIN_EMAIL', None) or getattr(settings, 'EMAIL_HOST_USER', None)
     store_name = fundraiser.name or f"Store #{fundraiser.id}"
     subject = f"New Pop-Up Store Created: {store_name}"
 
@@ -1189,7 +1189,7 @@ Treats Island GO Virtual Fundraising
 </html>
 """
     try:
-        from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'Treats Island <hasantechninja@gmail.com>')
+        from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', None) or getattr(settings, 'EMAIL_HOST_USER', None)
         send_mail(
             subject=subject,
             message=text_content,
@@ -1299,7 +1299,7 @@ Treats Island GO Virtual Fundraising
 </html>
 """
     try:
-        from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'Treats Island <hasantechninja@gmail.com>')
+        from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', None) or getattr(settings, 'EMAIL_HOST_USER', None)
         send_mail(
             subject=subject,
             message=text_content,
