@@ -870,6 +870,7 @@ class GuestCheckoutSessionView(APIView):
         customer = None
         idempotency_key = request.data.get('idempotency_key', str(uuid.uuid4()))
         try:
+            customer = create_stripe_customer(address, name, email, phone)
             shop_id = next((fid for _, _, fid in order_items_to_create if fid), None)
             params = {}
             if shop_id:

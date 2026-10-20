@@ -213,7 +213,31 @@ def sync_connect_account_status(user):
             "external_account": None,
         }
 
-    account = stripe.Account.retrieve(user.stripe_connect_account_id)
+    try:
+        account = stripe.Account.retrieve(user.stripe_connect_account_id)
+    except stripe.error.StripeError as exc:
+        logger.warning(
+            "Stripe account %s invalid or from test mode: %s. Resetting user account.",
+            user.stripe_connect_account_id,
+            exc,
+        )
+        user.stripe_connect_account_id = None
+        user.stripe_connect_onboarding_completed = False
+        user.stripe_connect_payouts_enabled = False
+        user.save(
+            update_fields=[
+                "stripe_connect_account_id",
+                "stripe_connect_onboarding_completed",
+                "stripe_connect_payouts_enabled",
+            ]
+        )
+        return {
+            "account_id": None,
+            "onboarding_completed": False,
+            "payouts_enabled": False,
+            "details_submitted": False,
+            "external_account": None,
+        }
     details_submitted = bool(getattr(account, "details_submitted", False))
     payouts_enabled = bool(getattr(account, "payouts_enabled", False))
 

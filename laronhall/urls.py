@@ -46,14 +46,11 @@ urlpatterns = [
 def cached_media_serve(request, path, document_root=None, show_indexes=False):
     return serve(request, path, document_root=document_root, show_indexes=show_indexes)
 
-if settings.DEBUG:
-    # Use cached view for media files
-    from django.urls import re_path
-    urlpatterns += [
-        re_path(r'^media/(?P<path>.*)$', cached_media_serve, {'document_root': settings.MEDIA_ROOT}),
-    ]
-    # Keep standard static serving for static files if needed
-    # urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+from django.urls import re_path
+
+urlpatterns += [
+    re_path(r'^media/(?P<path>.*)$', cached_media_serve, {'document_root': settings.MEDIA_ROOT}),
+]
 
 # Force unregister models from the Django admin dashboard
 try:
