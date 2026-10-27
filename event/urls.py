@@ -22,6 +22,8 @@ urlpatterns = [
     path('<int:id>/delete/', views.EventDeleteView.as_view(), name='event-delete'),
     path('<int:event_id>/leaderboard/', views.EventLeaderboardView.as_view(), name='event-leaderboard'),
     path('fundraiser/<int:id>/supporters/', views.FundraiserSupporterListView.as_view(), name='fundraiser-supporters'),
+    path('<int:id>/sales-report/', views.EventSalesReportView.as_view(), name='event-sales-report'),
+    path('<int:id>/sales-report/pdf/', views.EventSalesReportPDFExportView.as_view(), name='event-sales-report-pdf'),
     # Event Creator Payout / Connect Endpoints
     path('connect/banking/', views.StripeConnectOnboardingView.as_view(), name='event-connect-banking'),
     path('connect/status/', views.StripeConnectStatusView.as_view(), name='event-connect-status'),

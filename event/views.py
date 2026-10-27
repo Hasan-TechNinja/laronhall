@@ -12,6 +12,9 @@ from django.utils.dateparse import parse_datetime
 import random
 import string
 from notification.utils import send_push_notification
+from django.http import HttpResponse
+from django.urls import reverse
+from .reports import get_event_sales_report_data, generate_event_sales_report_pdf
 
 
 class IsEventCreator(permissions.BasePermission):
@@ -729,3 +732,113 @@ class FundraiserPublicView(APIView):
             'leaderboard': leaderboard_data,
             'recent_supporters': supporters
         }, status=status.HTTP_200_OK)
+
+
+class EventSalesReportView(APIView):
+    """
+    GET /event/<id>/sales-report/
+
+    Returns the sales report data for an event in JSON format (matching the Django admin sales report).
+    If query parameter `export=pdf` or `format=pdf` is provided, returns the downloadable PDF report.
+
+    Permissions:
+      - Authenticated user who is the creator of the event, or staff/superuser.
+      - Supports JWT in `Authorization: Bearer <token>` or query param `?token=<token>`.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, id):
+        user = request.user
+        if not user or not user.is_authenticated:
+            token = request.query_params.get('token')
+            if token:
+                from rest_framework_simplejwt.authentication import JWTAuthentication
+                try:
+                    jwt_auth = JWTAuthentication()
+                    validated_token = jwt_auth.get_validated_token(token)
+                    user = jwt_auth.get_user(validated_token)
+                except Exception:
+                    return Response({'error': 'Invalid or expired token.'}, status=status.HTTP_401_UNAUTHORIZED)
+            else:
+                return Response({'error': 'Authentication credentials were not provided.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        try:
+            event = Event.objects.get(id=id)
+        except Event.DoesNotExist:
+            return Response({'error': 'Event not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if event.creator != user and not (user.is_staff or user.is_superuser):
+            return Response({'error': 'Only the event creator can access this sales report.'}, status=status.HTTP_403_FORBIDDEN)
+
+        export_format = (request.query_params.get('export') or request.query_params.get('format') or '').lower()
+        accept_header = request.headers.get('Accept', '')
+
+        is_paid_param = request.query_params.get('is_paid')
+        if is_paid_param is not None:
+            is_paid = is_paid_param.lower() in ('true', '1', 'yes')
+        else:
+            is_paid = True
+
+        data = get_event_sales_report_data(event, is_paid=is_paid)
+
+        if export_format == 'pdf' or accept_header == 'application/pdf':
+            pdf_bytes = generate_event_sales_report_pdf(event, report_data=data)
+            filename = f"sales_report_{event.code or event.id}.pdf"
+            response = HttpResponse(pdf_bytes, content_type='application/pdf')
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            return response
+
+        data['pdf_export_url'] = request.build_absolute_uri(
+            reverse('event-sales-report-pdf', kwargs={'id': event.id})
+        )
+        return Response(data, status=status.HTTP_200_OK)
+
+
+class EventSalesReportPDFExportView(APIView):
+    """
+    GET /event/<id>/sales-report/pdf/
+
+    Directly downloads the PDF sales report for the event matching the Django admin PDF export.
+
+    Permissions:
+      - Authenticated user who is the creator of the event, or staff/superuser.
+      - Supports JWT in `Authorization: Bearer <token>` or query param `?token=<token>`.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, id):
+        user = request.user
+        if not user or not user.is_authenticated:
+            token = request.query_params.get('token')
+            if token:
+                from rest_framework_simplejwt.authentication import JWTAuthentication
+                try:
+                    jwt_auth = JWTAuthentication()
+                    validated_token = jwt_auth.get_validated_token(token)
+                    user = jwt_auth.get_user(validated_token)
+                except Exception:
+                    return Response({'error': 'Invalid or expired token.'}, status=status.HTTP_401_UNAUTHORIZED)
+            else:
+                return Response({'error': 'Authentication credentials were not provided.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        try:
+            event = Event.objects.get(id=id)
+        except Event.DoesNotExist:
+            return Response({'error': 'Event not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if event.creator != user and not (user.is_staff or user.is_superuser):
+            return Response({'error': 'Only the event creator can access this sales report.'}, status=status.HTTP_403_FORBIDDEN)
+
+        is_paid_param = request.query_params.get('is_paid')
+        if is_paid_param is not None:
+            is_paid = is_paid_param.lower() in ('true', '1', 'yes')
+        else:
+            is_paid = True
+
+        data = get_event_sales_report_data(event, is_paid=is_paid)
+        pdf_bytes = generate_event_sales_report_pdf(event, report_data=data)
+        filename = f"sales_report_{event.code or event.id}.pdf"
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+
