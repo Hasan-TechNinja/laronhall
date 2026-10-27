@@ -72,7 +72,7 @@ class EventAdmin(admin.ModelAdmin):
     )
     # list_filter = ('is_active', 'type', 'start_date', 'end_date')
     search_fields = ('name', 'code', 'creator__email', 'creator__username', 'creator__full_name')
-    ordering = ('id',)
+    ordering = ('-id',)
     list_select_related = ('creator', 'type')
     readonly_fields = ('organizer_email', 'organizer_phone')
     fields = (
