@@ -42,15 +42,12 @@ urlpatterns = [
     path('api/token/blacklist/', TokenBlacklistView.as_view(), name='token_blacklist'),
 ]
 
-@cache_page(60 * 60 * 24)  # Cache media files in Redis for 24 hours
-def cached_media_serve(request, path, document_root=None, show_indexes=False):
-    return serve(request, path, document_root=document_root, show_indexes=show_indexes)
-
 from django.urls import re_path
 
 urlpatterns += [
-    re_path(r'^media/(?P<path>.*)$', cached_media_serve, {'document_root': settings.MEDIA_ROOT}),
+    re_path(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}),
 ]
+
 
 # Force unregister models from the Django admin dashboard
 try:
