@@ -1,4 +1,4 @@
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.contrib.auth import get_user_model
 User = get_user_model()
 from django.urls import reverse
@@ -174,6 +174,7 @@ class EventEmailTests(TestCase):
         self.assertTrue(event.banking_details_reminder_sent)
 
 
+@override_settings(CACHES={"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}})
 class EventSalesReportTests(TestCase):
     def setUp(self):
         self.client = APIClient()
@@ -322,6 +323,7 @@ class EventSalesReportTests(TestCase):
         self.assertEqual(response['Content-Type'], 'application/pdf')
         self.assertIn('attachment;', response['Content-Disposition'])
         self.assertTrue(response.content.startswith(b'%PDF-'))
+        self.assertNotIn(b'Due Treats', response.content)
 
     def test_sales_report_pdf_export_with_token_param(self):
         # Without Authorization header, using ?token= query param

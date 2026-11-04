@@ -273,7 +273,7 @@ def generate_event_sales_report_pdf(event, report_data=None):
     )
     elements.append(Paragraph(meta_text, meta_style))
 
-    # Column headers exactly matching Django admin ReportResource
+    # Column headers for PDF export (Due Treats excluded)
     headers = [
         '#',
         'Supporter name',
@@ -281,7 +281,6 @@ def generate_event_sales_report_pdf(event, report_data=None):
         'Items purchased',
         'Candy price',
         'Due Organizer',
-        'Due Treats',
         'Popup Name',
     ]
 
@@ -344,7 +343,6 @@ def generate_event_sales_report_pdf(event, report_data=None):
         purchase_date_text = escape(row.get('purchase_date', ''))
         candy_price_text = escape(str(row.get('candy_price', '0')))
         due_org_text = escape(str(row.get('due_organizer', '$ 0.00')))
-        due_treats_text = escape(str(row.get('due_treats', '$ 0.00')))
         popup_name_text = escape(row.get('popup_name', '-'))
 
         table_data.append([
@@ -354,7 +352,6 @@ def generate_event_sales_report_pdf(event, report_data=None):
             Paragraph(items_html, cell_style),
             Paragraph(candy_price_text, cell_style),
             Paragraph(due_org_text, cell_style),
-            Paragraph(due_treats_text, cell_style),
             Paragraph(popup_name_text, cell_style),
         ])
 
@@ -374,7 +371,6 @@ def generate_event_sales_report_pdf(event, report_data=None):
             Paragraph("", cell_style),
             Paragraph("", cell_style),
             Paragraph("", cell_style),
-            Paragraph("", cell_style),
         ]
         table_data.append(empty_row)
 
@@ -382,7 +378,6 @@ def generate_event_sales_report_pdf(event, report_data=None):
     has_total_row = bool(sales)
     if has_total_row:
         due_org_total = summary.get('due_organizer_sales', 0.0)
-        due_treats_total = summary.get('due_treats_sales', 0.0)
         total_row = [
             Paragraph("", cell_style),
             Paragraph("", cell_style),
@@ -390,13 +385,12 @@ def generate_event_sales_report_pdf(event, report_data=None):
             Paragraph("Total:", total_label_style),
             Paragraph("", cell_style),
             Paragraph(f"$ {due_org_total:.2f}", total_val_style),
-            Paragraph(f"$ {due_treats_total:.2f}", total_val_style),
             Paragraph("", cell_style),
         ]
         table_data.append(total_row)
 
-    # Exact column widths matching shop/admin.py PDF export (Sum = 752 points)
-    col_widths = [28, 90, 72, 245, 55, 68, 64, 130]
+    # Column widths spanning 752 points (landscape letter with 20pt margins)
+    col_widths = [28, 105, 75, 265, 65, 75, 139]
 
     t = Table(table_data, colWidths=col_widths, repeatRows=1)
     t_style = [
