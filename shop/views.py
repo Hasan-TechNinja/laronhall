@@ -107,6 +107,18 @@ def address_session_metadata(address, name=None, email=None, phone=None):
         metadata["shipping_phone"] = phone
     return metadata
 
+
+def event_not_started_response(fundraiser):
+    """Response returned when a popup store's event hasn't started, so its products can't be purchased."""
+    event = fundraiser.event if fundraiser else None
+    return Response({
+        "error": fundraiser.EVENT_NOT_STARTED_MESSAGE,
+        "code": "event_not_started",
+        "fundraiser_id": fundraiser.id if fundraiser else None,
+        "event_id": event.id if event else None,
+        "event_start_date": event.start_date if event else None,
+    }, status=status.HTTP_400_BAD_REQUEST)
+
 # Create your views here.
 
 class ProductsView(APIView):
@@ -193,6 +205,8 @@ class AddToCart(APIView):
                 fundraiser = Fundraiser.objects.get(id=fundraiser_id)
             except Fundraiser.DoesNotExist:
                 return Response({"error": "Fundraiser not found"}, status=status.HTTP_404_NOT_FOUND)
+            if not fundraiser.is_purchasable:
+                return event_not_started_response(fundraiser)
 
         if Cart.objects.filter(user=request.user, product=product, fundraiser=fundraiser).exists():
             cart = Cart.objects.get(user=request.user, product=product, fundraiser=fundraiser)
@@ -318,6 +332,11 @@ class CreateCheckoutSessionView(APIView):
             if not cart_items.exists():
                 write_checkout_log("CreateCheckoutSessionView", request, error="Cart is empty")
                 return Response({"error": "Cart is empty"}, status=status.HTTP_400_BAD_REQUEST)
+
+            for item in cart_items:
+                if item.fundraiser and not item.fundraiser.is_purchasable:
+                    write_checkout_log("CreateCheckoutSessionView", request, error="Event not started")
+                    return event_not_started_response(item.fundraiser)
                 
             for item in cart_items:
                 try:
@@ -353,6 +372,14 @@ class CreateCheckoutSessionView(APIView):
                 fundraiser_id = item.get('fundraiser_id')
                 try:
                     product = Product.objects.get(slug=slug, is_active=True)
+                    fundraiser = None
+                    if fundraiser_id:
+                        from event.models import Fundraiser
+                        fundraiser = Fundraiser.objects.filter(id=fundraiser_id).first()
+                    if fundraiser and not fundraiser.is_purchasable:
+                        write_checkout_log("CreateCheckoutSessionView", request, error="Event not started")
+                        return event_not_started_response(fundraiser)
+
                     unit_amount = int(float(product.price) * 100)
                     
                     line_items.append({
@@ -364,10 +391,6 @@ class CreateCheckoutSessionView(APIView):
                         'quantity': quantity,
                     })
                     
-                    fundraiser = None
-                    if fundraiser_id:
-                        from event.models import Fundraiser
-                        fundraiser = Fundraiser.objects.filter(id=fundraiser_id).first()
                     order_items_to_create.append((product, quantity, fundraiser))
                     
                     try:
@@ -833,6 +856,12 @@ class GuestCheckoutSessionView(APIView):
             fundraiser_id = item.get('fundraiser_id')
             try:
                 product = Product.objects.get(slug=slug, is_active=True)
+                if fundraiser_id:
+                    from event.models import Fundraiser
+                    fundraiser = Fundraiser.objects.filter(id=fundraiser_id).first()
+                    if fundraiser and not fundraiser.is_purchasable:
+                        write_checkout_log("GuestCheckoutSessionView", request, error="Event not started")
+                        return event_not_started_response(fundraiser)
                 unit_amount = int(float(product.price) * 100)
                 
                 line_items.append({

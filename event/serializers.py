@@ -225,10 +225,25 @@ class FundraiserSerializer(serializers.ModelSerializer):
     achieved = serializers.SerializerMethodField()
     user_profile = UserProfileMinSerializer(source='user', read_only=True)
     share_link = serializers.SerializerMethodField()
+    is_purchasable = serializers.BooleanField(read_only=True)
+    purchase_message = serializers.CharField(source='purchase_block_message', read_only=True, allow_null=True)
+    event_start_date = serializers.DateTimeField(source='event.start_date', read_only=True)
+    event_status = serializers.SerializerMethodField()
 
     class Meta:
         model = Fundraiser
         fields = "__all__"
+
+    def get_event_status(self, obj):
+        event = obj.event
+        if not event or not event.start_date:
+            return "Unknown"
+        now = timezone.now()
+        if event.start_date > now:
+            return "Upcoming"
+        if event.end_date and event.end_date < now:
+            return "Completed"
+        return "Ongoing"
 
     def get_share_link(self, obj):
         return f"https://treatsislandgo.com/shop/{obj.id}"

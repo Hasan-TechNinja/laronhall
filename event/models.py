@@ -50,6 +50,12 @@ class Event(models.Model):
         return self.creator.stripe_connect_account_id if self.creator else None
 
     @property
+    def has_started(self):
+        """True once the event's start_date has been reached."""
+        from django.utils import timezone
+        return bool(self.start_date and self.start_date <= timezone.now())
+
+    @property
     def total_creator_earnings(self):
         from django.db.models import Sum
         from shop.models import Order
@@ -82,6 +88,19 @@ class Fundraiser(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    EVENT_NOT_STARTED_MESSAGE = "The event has not started yet. Products from this popup store can be purchased once the event starts."
+
+    @property
+    def is_purchasable(self):
+        """Products of a popup store can only be purchased after its event has started."""
+        return bool(self.event and self.event.has_started)
+
+    @property
+    def purchase_block_message(self):
+        if self.is_purchasable:
+            return None
+        return self.EVENT_NOT_STARTED_MESSAGE
 
     class Meta:
         unique_together = ('user', 'event')
